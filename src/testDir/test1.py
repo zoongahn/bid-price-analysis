@@ -1,0 +1,1 @@
+print("fdjsklsdf"[:-1])
