@@ -23,7 +23,7 @@ def to_int(s):
 
 def extract_table():
 	df = pd.DataFrame()
-	max_page = prtcptCnum // 50
+	max_page = (prtcptCnum - 1) // 50
 
 	# 1st page's table
 	html = driver.find_element(By.XPATH, "//*[@id=\"company_list\"]/div[2]/table").get_attribute("outerHTML")
@@ -41,6 +41,10 @@ def extract_table():
 		df = pd.concat([df, pd.read_html(html)[0]])
 
 	df.to_csv(f"../output/{code}.csv")
+
+	# 다운로드 히스토리 기록
+	with open("download_history.txt", "a") as f:
+		f.write(f"공고번호 {code} 다운로드 완료\n")
 
 
 # ignore FutureWarnings
@@ -99,8 +103,12 @@ Select(driver.find_element(By.ID, "list_num_select")).select_by_value(str(info_c
 Select(driver.find_element(By.ID, "align_select")).select_by_value("2024")
 list_max = driver.find_element(By.XPATH, "/html/body/div[5]/div/div[2]/table/tbody/tr[1]/td[1]/p").text
 
+# 2페이지
+driver.find_element(By.XPATH, "/html/body/div[5]/div/div[4]/div/a[2]").send_keys("\n")
+
 criterion = 10
-for column in range(1, info_count + 1):
+start_column = 145 - 127
+for column in range(start_column, info_count + 1):
 
 	prtcptCnum = to_int(
 		driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[13]/div").text)
