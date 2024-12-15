@@ -1,1 +1,1 @@
-print("fdjsklsdf"[:-1])
+print("fdjskl"[:-1])
