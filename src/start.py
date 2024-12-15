@@ -6,6 +6,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+
 import time
 import pandas as pd
 from math import ceil
@@ -19,7 +21,7 @@ def to_int(s):
 	return int(s.replace(",", ""))
 
 
-def get_table():
+def extract_table():
 	df = pd.DataFrame()
 	max_page = prtcptCnum // 50
 
@@ -38,7 +40,7 @@ def get_table():
 		html = driver.find_element(By.XPATH, "//*[@id=\"company_list\"]/div[2]/table").get_attribute("outerHTML")
 		df = pd.concat([df, pd.read_html(html)[0]])
 
-	df.to_csv(f"output/{code}.csv")
+	df.to_csv(f"../output/{code}.csv")
 
 
 # ignore FutureWarnings
@@ -91,14 +93,35 @@ driver.find_element(By.ID, "login_btn").click()
 # 낙찰정보 클릭
 driver.find_element(By.ID, "nbid_menu2").click()
 
-column = 3
+# 500개씩, 특정년도로
+info_count = 500
+Select(driver.find_element(By.ID, "list_num_select")).select_by_value(str(info_count))
+Select(driver.find_element(By.ID, "align_select")).select_by_value("2024")
+list_max = driver.find_element(By.XPATH, "/html/body/div[5]/div/div[2]/table/tbody/tr[1]/td[1]/p").text
+
 criterion = 10
-prtcptCnum = to_int(
-	driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[13]/div").text)
-if prtcptCnum > criterion:
-	driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[2]/a").click()
+for column in range(1, info_count + 1):
 
-x = driver.find_element(By.XPATH, "//*[@id=\"content1\"]/div[3]/div[1]/div/table/tbody/tr[1]/td").text
-code = x[:x.find(" ")]
+	prtcptCnum = to_int(
+		driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[13]/div").text)
 
-get_table()
+	# 참여업체수가 기준보다 낮으면 패스
+	if prtcptCnum < criterion:
+		continue
+
+	# 오픈할 공고의 링크
+	link = driver.find_element(By.XPATH,
+	                           f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[2]/a").get_attribute("href")
+	# 새탭 오픈
+	driver.switch_to.new_window('tab')
+	driver.get(link)
+
+	# 공고번호 저장(aka csv파일 이름)
+	x = driver.find_element(By.XPATH, "//*[@id=\"content1\"]/div[3]/div[1]/div/table/tbody/tr[1]/td").text
+	code = x[:x.find(" ")]
+
+	extract_table()
+
+	driver.close()
+	driver.switch_to.window(driver.window_handles[-1])
+	time.sleep(1)

@@ -79,11 +79,10 @@ if prtcptCnum > criterion:
 	# 열 공고의 링크
 	link = driver.find_element(By.XPATH,
 	                           f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[2]/a").get_attribute("href")
-	driver.execute_script(f'window.open("{link}");')
-	driver.switch_to.window(driver.window_handles[-1])
-	time.sleep(10000000)
+	driver.switch_to.new_window('tab')
+	driver.get(link)
 
-x = driver.find_element(By.XPATH, "//*[@id=\"content1\"]/div[3]/div[1]/div/table/tbody/tr[1]/td").text
-code = x[:x.find(" ")]
+	# get_table()
+	driver.close()
 
-# get_table()
+	time.sleep(100)
