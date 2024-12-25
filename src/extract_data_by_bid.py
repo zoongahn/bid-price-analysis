@@ -107,11 +107,11 @@ list_max = driver.find_element(By.XPATH, "/html/body/div[5]/div/div[2]/table/tbo
 driver.find_element(By.XPATH, "/html/body/div[5]/div/div[4]/div/a[2]").send_keys("\n")
 
 criterion = 10
-start_column = 145 - 127
-for column in range(start_column, info_count + 1):
+start_row = 145 - 126
+for row in range(start_row, info_count + 1):
 
 	prtcptCnum = to_int(
-		driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[13]/div").text)
+		driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[13]/div").text)
 
 	# 참여업체수가 기준보다 낮으면 패스
 	if prtcptCnum < criterion:
@@ -119,7 +119,7 @@ for column in range(start_column, info_count + 1):
 
 	# 오픈할 공고의 링크
 	link = driver.find_element(By.XPATH,
-	                           f"/html/body/div[5]/div/div[2]/table/tbody/tr[{column}]/td[2]/a").get_attribute("href")
+	                           f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[2]/a").get_attribute("href")
 	# 새탭 오픈
 	driver.switch_to.new_window('tab')
 	driver.get(link)

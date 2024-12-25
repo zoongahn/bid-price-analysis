@@ -16,11 +16,11 @@ from math import ceil
 import warnings
 
 
-def to_int(s):
+def price_converter(s):
 	f = s.find("/")
 	if f != -1:
 		s = s[:f].strip()
-	return int(s.replace("원", "").replace(",", ""))
+	return s.replace("원", "").replace(",", "")
 
 
 # ignore FutureWarnings
@@ -51,7 +51,7 @@ service = ChromeService(executable_path=ChromeDriverManager().install())
 
 options = webdriver.ChromeOptions()
 
-# options.add_argument('headless')
+options.add_argument('headless')
 options.add_argument("no-sandbox")
 
 options.add_argument("window-size=1920x1080")
@@ -81,9 +81,9 @@ Select(driver.find_element(By.ID, "list_num_select")).select_by_value(str(info_c
 Select(driver.find_element(By.ID, "align_select")).select_by_value(year)
 list_max = driver.find_element(By.XPATH, "/html/body/div[5]/div/div[2]/table/tbody/tr[1]/td[1]/p").text
 
-# driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[4]/div/a[{page_num}]").send_keys("\n")
+driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[4]/div/a[{page_num}]").send_keys("\n")
 
-RESULT_FILE_PATH = f"../../output/공고_기본_정보/original/공고기본정보_{year}_서울_통신_original.csv"
+RESULT_FILE_PATH = f"../output/공고_기본_정보/original/공고기본정보_{year}_서울_통신_original.csv"
 
 f = open(RESULT_FILE_PATH, "a", newline="")
 wr = csv.writer(f)
@@ -91,64 +91,66 @@ wr = csv.writer(f)
 attrs = ["id", "공고번호", "공고제목", "발주처(수요기관)", "지역제한", "기초금액", "예정가격", "예가범위", "A값", "투찰률(%)", "참여업체수", "공고구분표시",
          "정답사정률(%)"]
 
-row = 773 - 456
-data_row_counter = 251
+# wr.writerow(attrs)
 
-result = {
-	"id": "", "공고번호": "", "공고제목": "", "발주처": "", "지역제한": "", "기초금액": "", "예정가격": "", "예가범위": "", "A값": "0",
-	"투찰률": "", "참여업체수": "", "공고구분표시": "", "정답사정률": ""
-}
+criterion = 10
+start_row = 1
+data_row_counter = 393
+for row in range(start_row, info_count + 1):
+	result = {
+		"id": "", "공고번호": "", "공고제목": "", "발주처": "", "지역제한": "", "기초금액": "", "예정가격": "", "예가범위": "", "A값": "0",
+		"투찰률": "", "참여업체수": "", "공고구분표시": "", "정답사정률": ""
+	}
 
-prtcptCnum = to_int(
-	driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[13]/div").text)
+	prtcptCnum = int(price_converter(
+		driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[13]/div").text))
 
-result["참여업체수"] = str(prtcptCnum)
+	if prtcptCnum <= criterion:
+		continue
 
-result["예가범위"] = driver.find_element(By.XPATH,
-                                     f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[16]/div").text
+	result["참여업체수"] = str(prtcptCnum)
 
-# 오픈할 공고의 링크
-link = driver.find_element(By.XPATH,
-                           f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[2]/a").get_attribute("href")
-# 새탭 오픈
-driver.switch_to.new_window('tab')
-driver.get(link)
+	result["예가범위"] = driver.find_element(By.XPATH,
+	                                     f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[16]/div").text
 
-bid_infos = driver.find_elements(By.CSS_SELECTOR,
-                                 "#content1 > div:nth-child(4) > div:nth-child(1) > div > table > tbody > tr > td")
+	# 오픈할 공고의 링크
+	link = driver.find_element(By.XPATH,
+	                           f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[2]/a").get_attribute("href")
+	# 새탭 오픈
+	driver.switch_to.new_window('tab')
+	driver.get(link)
 
-for i in range(len(bid_infos)):
-	print(i, bid_infos[i].text)
+	bid_infos = driver.find_elements(By.CSS_SELECTOR,
+	                                 "#content1 > div:nth-child(4) > div:nth-child(1) > div > table > tbody > tr > td")
 
-result["id"] = data_row_counter
-result["공고번호"] = bid_infos[0].text.split(" ")[0]
-result["발주처"] = bid_infos[3].text.split(" ")[0]
-result["지역제한"] = bid_infos[4].text
-result["기초금액"] = str(to_int(bid_infos[6].text))
-result["예정가격"] = str(to_int(bid_infos[8].text))
-result["투찰률"] = bid_infos[7].text.replace("%", "")
-result["정답사정률"] = bid_infos[9].text.split("%")[0]
+	result["id"] = data_row_counter
+	result["공고번호"] = bid_infos[0].text.split(" ")[0]
+	result["발주처"] = bid_infos[2].text.split(" ")[0]
+	result["지역제한"] = bid_infos[3].text
+	result["기초금액"] = str(int(price_converter(bid_infos[5].text)))
+	result["예정가격"] = str(int(price_converter(bid_infos[7].text)))
+	result["투찰률"] = bid_infos[6].text.replace("%", "")
+	result["정답사정률"] = bid_infos[8].text.split("%")[0]
 
-bid_marks = [i.text for i in driver.find_elements(By.XPATH,
-                                                  "//*[@id=\"content1\"]/div[2]/table/tbody/tr/td/a/label")]
+	bid_marks = [i.text for i in driver.find_elements(By.XPATH,
+	                                                  "//*[@id=\"content1\"]/div[2]/table/tbody/tr/td/a/label")]
 
-except_str = " ".join(bid_marks)
+	except_str = " ".join(bid_marks)
 
-bid_title = driver.find_element(By.XPATH, "//*[@id=\"content1\"]/div[2]/table/tbody/tr/td/a").text.replace(
-	except_str,
-	"").strip()
+	bid_title = driver.find_element(By.XPATH, "//*[@id=\"content1\"]/div[2]/table/tbody/tr/td/a").text.replace(
+		except_str,
+		"").strip()
 
-result["공고제목"] = bid_title
-result["공고구분표시"] = "/".join(bid_marks)
+	result["공고제목"] = bid_title
+	result["공고구분표시"] = "/".join(bid_marks)
 
-if "A값" in bid_marks:
-	result["A값"] = str(to_int(bid_infos[10].text))
+	if "A값" in bid_marks:
+		result["A값"] = str(price_converter(bid_infos[9].text))
 
-wr.writerow(result.values())
-data_row_counter += 1
+	wr.writerow(result.values())
+	data_row_counter += 1
 
-driver.close()
-driver.switch_to.window(driver.window_handles[-1])
-time.sleep(1)
+	driver.close()
+	driver.switch_to.window(driver.window_handles[-1])
 
 f.close()
