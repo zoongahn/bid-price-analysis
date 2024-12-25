@@ -1,1 +1,0 @@
-print("fdjskl"[:-1])
