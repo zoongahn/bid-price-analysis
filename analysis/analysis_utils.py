@@ -93,100 +93,205 @@ def simulate(n, seed=42):
 
     return results
 
-def preprocess_data(basic_info_df, csv_dir_path):
+def get_csv_files(basic_info_df, csv_dir_path):
     """
-    basic_info_df 의 각 공고번호를 기준으로,
-    1) 참여업체수가 100 이상이고 예가범위가 '+3% ~ -3%' 인 경우에만
-    2) 해당 공고번호와 동일한 이름의 CSV 파일을 csv_dir_path에서 읽어
-    3) '기초대비 사정률(%)  A' 칼럼에서 앞부분 (예: -0.95811 (99.04189) 중 -0.95811)을 float로 파싱
-    4) 파싱된 값을 -3~+3 구간으로 나누어 각각 10, 20, 50, 100개의 bin에 대해 히스토그램(총 180개 bin)을 계산
-    5) hist 결과(각 bin count)를 기본 DataFrame(basic_info_df)에 새로운 컬럼(예: 010_001, 010_002, ..., 100_100)으로 추가
-    6) 가공 완료된 DataFrame 을 반환
+    basic_info_df의 공고번호에 해당하는 CSV 파일들을 찾아서 반환합니다.
     
     Parameters
     ----------
     basic_info_df : pd.DataFrame
-        '공고번호', '참여업체수', '예가범위' 등을 포함하는 DataFrame
+        '공고번호'를 포함하는 DataFrame
     csv_dir_path : str
-        공고번호에 해당하는 csv 파일들이 저장된 디렉토리 경로
-
+        CSV 파일들이 저장된 디렉토리 경로
+        
     Returns
     -------
-    pd.DataFrame
-        기존의 basic_info_df에 180개 히스토그램 bin count 컬럼이 추가된 DataFrame.
-        (조건에 맞지 않는 row에 대해서는 bin 값이 모두 0 또는 NaN이 들어갈 수 있음)
+    dict
+        {공고번호: 파일경로} 형태의 딕셔너리
     """
-    import os
-    import re
-    import numpy as np
-    import pandas as pd
-
-    # 기본 컬럼들로 빈 DataFrame 생성
-    filtered_df = pd.DataFrame(columns=basic_info_df.columns)
+    csv_files = {}
+    not_found = []
     
-    # 모든 bin 컬럼들을 미리 준비
+    for idx, row in basic_info_df.iterrows():
+        공고번호 = str(row.get('공고번호', ''))
+        csv_file_path = os.path.join(csv_dir_path, f"{공고번호}.csv")
+        
+        if os.path.isfile(csv_file_path):
+            csv_files[공고번호] = csv_file_path
+        else:
+            not_found.append(공고번호)
+    
+    # 결과 출력
+    print(f"총 공고 수: {len(basic_info_df)}")
+    print(f"찾은 CSV 파일 수: {len(csv_files)}")
+    print(f"찾지 못한 파일 수: {len(not_found)}")
+    
+    if len(not_found) > 0:
+        print("\n처음 5개 찾지 못한 공고번호:")
+        print(not_found[:5])
+        
+    return csv_files
+
+def validate_histogram_data(result_df, csv_dir_path):
+    """
+    히스토그램 데이터의 유효성을 검증합니다.
+    """
+    # 1. 히스토그램 bin 컬럼 식별
+    bin_columns = [col for col in result_df.columns if col.startswith(('010_', '020_', '050_', '100_'))]
+    
+    # 2. 각 row의 히스토그램 합계가 0인 경우 찾기
+    hist_sums = result_df[bin_columns].sum(axis=1)
+    zero_rows = hist_sums == 0
+    problematic_rows = result_df[zero_rows]
+    
+    if len(problematic_rows) > 0:
+        print(f"\n경고: {len(problematic_rows)}개의 행에서 모든 히스토그램 bin이 0입니다.")
+        
+        # 문제가 있는 행들의 상세 정보 출력
+        for idx, row in problematic_rows.iterrows():
+            print(f"\n문제 발견된 행 #{idx}")
+            print(f"공고번호: {row['공고번호']}")
+            print(f"참여업체수: {row['참여업체수']}")
+            
+            # 원본 CSV 파일 확인
+            csv_path = os.path.join(csv_dir_path, f"{row['공고번호']}.csv")
+            if os.path.exists(csv_path):
+                df = pd.read_csv(csv_path)
+                print(f"원본 파일 행 수: {len(df)}")
+                print("사용 가능한 컬럼:", df.columns.tolist())
+                
+                # 사정률 데이터 샘플 확인
+                rate_columns = [col for col in df.columns if '사정률' in col]
+                if rate_columns:
+                    print("\n사정률 데이터 샘플:")
+                    for col in rate_columns:
+                        print(f"\n{col}:")
+                        print(df[col].head())
+        
+        return False
+    
+    return True
+
+def preprocess_datas(basic_info_df, csv_dir_path, percent_range = '+3% ~ -3%'):
+    """
+    CSV 파일들을 처리하여 히스토그램 데이터를 생성합니다.
+    """
+    if percent_range == '+3% ~ -3%':
+        max_percent = 3
+    elif percent_range == '+2% ~ -2%':
+        max_percent = 2
+
+
+    # 1. CSV 파일 찾기
+    csv_files = get_csv_files(basic_info_df, csv_dir_path)
+    if not csv_files:
+        print("처리할 CSV 파일이 없습니다.")
+        return None
+
+    # 2. 기본 DataFrame 및 bin 설정 준비
     bin_list = [10, 20, 50, 100]
-    bin_columns = {}
-    for bc in bin_list:
-        for i in range(bc):
-            col_name = f"{bc:03}_{i+1:03}"
-            bin_columns[col_name] = 0
     
-    # 한 번에 모든 컬럼 추가
-    for col, value in bin_columns.items():
-        filtered_df[col] = value
+    # bin 컬럼들을 위한 빈 DataFrame 생성
+    bin_dfs = []
+    for bc in bin_list:
+        columns = [f"{bc:03}_{i+1:03}" for i in range(bc)]
+        temp_df = pd.DataFrame(0, index=np.arange(len(basic_info_df)), columns=columns)
+        bin_dfs.append(temp_df)
+    
+    # 모든 DataFrame을 한 번에 결합
+    filtered_df = pd.concat(
+        [basic_info_df] + bin_dfs, 
+        axis=1
+    ).copy()  # copy()를 통해 메모리 최적화
 
-    # 각 row를 순회하며 조건 만족 시 CSV 파일 처리
-    rows_list = []  # 새로운 row들을 저장할 리스트
+    # 3. 데이터 처리
+    rows_list = []
+    processed_count = 0
+    error_count = 0
 
     for idx, row in basic_info_df.iterrows():
+        공고번호 = str(row.get('공고번호', ''))
+        
+        # 1. CSV 파일 존재 확인
+        assert 공고번호 in csv_files, f"CSV 파일을 찾을 수 없음: {공고번호}"
+        
         참여업체수 = row.get('참여업체수', 0)
         예가범위 = row.get('예가범위', '')
-        공고번호 = str(row.get('공고번호', ''))
 
-        # 조건 체크: 참여업체수 >= 100 AND 예가범위 == '+3% ~ -3%'
-        if (참여업체수 >= 100) and (예가범위 == '+3% ~ -3%'):
-            csv_file_path = os.path.join(csv_dir_path, f"{공고번호}.csv")
-            if not os.path.isfile(csv_file_path):
-                continue
+        # 2. 기본 조건 확인
+        if not ((참여업체수 >= 100) and (예가범위 == percent_range)):
+            error_count += 1
+            continue
 
-            try:
-                df_csv = pd.read_csv(csv_file_path, encoding='utf-8', low_memory=False)
-                if '기초대비 사정률(%)  A' not in df_csv.columns:
-                    continue
-
-                df_csv['parsed_rate'] = (
-                    df_csv['기초대비 사정률(%)  A']
-                    .astype(str)
-                    .str.extract(r'(-?\d+\.\d+)')[0]
-                    .astype(float, errors='ignore')
-                )
+        # 3. CSV 파일 읽기 및 컬럼 확인
+        df_csv = pd.read_csv(csv_files[공고번호], encoding='utf-8', low_memory=False)
+        
+        # 4. 사정률 컬럼 확인 및 데이터 파싱
+        rate_column = None
+        for col in ['기초대비 사정률(%)  A', '기초대비 사정률(%)', '순공사대비 사정률(%)']:
+            if col in df_csv.columns:
+                rate_column = col
+                break
+        
+        assert rate_column is not None, f"사정률 컬럼을 찾을 수 없음: {공고번호}"
+        
+        try:
+            parsed_rates = (
+                df_csv[rate_column]
+                .astype(str)
+                .str.extract(r'(-?\d+\.\d+)')[0]
+                .astype(float)
+            )
+            
+            # 5. 파싱된 데이터 검증
+            assert not parsed_rates.empty, f"파싱된 데이터가 비어있음: {공고번호}"
+            assert parsed_rates.notna().any(), f"유효한 사정률 데이터가 없음: {공고번호}"
+            
+            parsed_data = parsed_rates.dropna()
+            
+            # 6. 히스토그램 계산 및 검증
+            new_row = row.to_dict()
+            for bc in bin_list:
+                bin_edges = np.linspace(-max_percent, max_percent, bc + 1)
+                hist_counts, _ = np.histogram(parsed_data, bins=bin_edges)
                 
-                parsed_data = df_csv['parsed_rate'].dropna()
-                if len(parsed_data) == 0:
-                    continue
-
-                # 새로운 row 데이터 준비
-                new_row = row.to_dict()
+                # 히스토그램이 모두 0인지 확인
+                assert hist_counts.sum() > 0, f"히스토그램이 모두 0임: {공고번호}"
                 
-                # histogram 계산 및 컬럼 추가
-                for bc in bin_list:
-                    bin_edges = np.linspace(-3.0, 3.0, bc + 1)
-                    hist_counts, _ = np.histogram(parsed_data, bins=bin_edges)
-                    
-                    for i in range(bc):
-                        col_name = f"{bc:03}_{i+1:03}"
-                        new_row[col_name] = hist_counts[i]
-                
-                # 리스트에 새로운 row 추가
-                rows_list.append(new_row)
+                for i in range(bc):
+                    col_name = f"{bc:03}_{i+1:03}"
+                    new_row[col_name] = hist_counts[i]
+            
+            rows_list.append(new_row)
+            processed_count += 1
+            
+        except Exception as e:
+            print(f"Error processing {공고번호}: {str(e)}")
+            error_count += 1
+            continue
 
-            except Exception as e:
-                print(f"Error processing file {공고번호}: {str(e)}")
-                continue
-
-    # 모든 row를 한 번에 DataFrame으로 변환
+    # 7. 최종 결과 생성 및 검증
     if rows_list:
-        filtered_df = pd.DataFrame(rows_list)
+        result_df = pd.DataFrame(rows_list)
+        
+        # 결과 데이터 검증
+        is_valid = validate_histogram_data(result_df, csv_dir_path)
+        if not is_valid:
+            print("경고: 결과 데이터에 문제가 있습니다.")
+        
+        return result_df
+    else:
+        return None
 
-    return filtered_df
+def merge_csv_files(csv_dir_path):
+    count = 0
+    csv_paths = glob.glob(os.path.join(csv_dir_path, "*.csv"))
+    df = pd.read_csv(csv_paths[0])
+    for i in range(1, len(csv_paths)):
+        concat_df = pd.read_csv(csv_paths[i])
+        if len(concat_df) > 100:
+            count += 1
+            df = pd.concat([df, concat_df], ignore_index=True)
+    print(count)
+    return df
+
