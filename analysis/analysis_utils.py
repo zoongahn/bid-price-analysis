@@ -92,3 +92,101 @@ def simulate(n, seed=42):
         results.append(avg_val)
 
     return results
+
+def preprocess_data(basic_info_df, csv_dir_path):
+    """
+    basic_info_df 의 각 공고번호를 기준으로,
+    1) 참여업체수가 100 이상이고 예가범위가 '+3% ~ -3%' 인 경우에만
+    2) 해당 공고번호와 동일한 이름의 CSV 파일을 csv_dir_path에서 읽어
+    3) '기초대비 사정률(%)  A' 칼럼에서 앞부분 (예: -0.95811 (99.04189) 중 -0.95811)을 float로 파싱
+    4) 파싱된 값을 -3~+3 구간으로 나누어 각각 10, 20, 50, 100개의 bin에 대해 히스토그램(총 180개 bin)을 계산
+    5) hist 결과(각 bin count)를 기본 DataFrame(basic_info_df)에 새로운 컬럼(예: 010_001, 010_002, ..., 100_100)으로 추가
+    6) 가공 완료된 DataFrame 을 반환
+    
+    Parameters
+    ----------
+    basic_info_df : pd.DataFrame
+        '공고번호', '참여업체수', '예가범위' 등을 포함하는 DataFrame
+    csv_dir_path : str
+        공고번호에 해당하는 csv 파일들이 저장된 디렉토리 경로
+
+    Returns
+    -------
+    pd.DataFrame
+        기존의 basic_info_df에 180개 히스토그램 bin count 컬럼이 추가된 DataFrame.
+        (조건에 맞지 않는 row에 대해서는 bin 값이 모두 0 또는 NaN이 들어갈 수 있음)
+    """
+    import os
+    import re
+    import numpy as np
+    import pandas as pd
+
+    # 기본 컬럼들로 빈 DataFrame 생성
+    filtered_df = pd.DataFrame(columns=basic_info_df.columns)
+    
+    # 모든 bin 컬럼들을 미리 준비
+    bin_list = [10, 20, 50, 100]
+    bin_columns = {}
+    for bc in bin_list:
+        for i in range(bc):
+            col_name = f"{bc:03}_{i+1:03}"
+            bin_columns[col_name] = 0
+    
+    # 한 번에 모든 컬럼 추가
+    for col, value in bin_columns.items():
+        filtered_df[col] = value
+
+    # 각 row를 순회하며 조건 만족 시 CSV 파일 처리
+    rows_list = []  # 새로운 row들을 저장할 리스트
+
+    for idx, row in basic_info_df.iterrows():
+        참여업체수 = row.get('참여업체수', 0)
+        예가범위 = row.get('예가범위', '')
+        공고번호 = str(row.get('공고번호', ''))
+
+        # 조건 체크: 참여업체수 >= 100 AND 예가범위 == '+3% ~ -3%'
+        if (참여업체수 >= 100) and (예가범위 == '+3% ~ -3%'):
+            csv_file_path = os.path.join(csv_dir_path, f"{공고번호}.csv")
+            if not os.path.isfile(csv_file_path):
+                continue
+
+            try:
+                df_csv = pd.read_csv(csv_file_path, encoding='utf-8', low_memory=False)
+                if '기초대비 사정률(%)  A' not in df_csv.columns:
+                    continue
+
+                df_csv['parsed_rate'] = (
+                    df_csv['기초대비 사정률(%)  A']
+                    .astype(str)
+                    .str.extract(r'(-?\d+\.\d+)')[0]
+                    .astype(float, errors='ignore')
+                )
+                
+                parsed_data = df_csv['parsed_rate'].dropna()
+                if len(parsed_data) == 0:
+                    continue
+
+                # 새로운 row 데이터 준비
+                new_row = row.to_dict()
+                
+                # histogram 계산 및 컬럼 추가
+                for bc in bin_list:
+                    bin_edges = np.linspace(-3.0, 3.0, bc + 1)
+                    hist_counts, _ = np.histogram(parsed_data, bins=bin_edges)
+                    
+                    for i in range(bc):
+                        col_name = f"{bc:03}_{i+1:03}"
+                        new_row[col_name] = hist_counts[i]
+                
+                # 리스트에 새로운 row 추가
+                rows_list.append(new_row)
+
+            except Exception as e:
+                print(f"Error processing file {공고번호}: {str(e)}")
+                continue
+
+    # 모든 row를 한 번에 DataFrame으로 변환
+    if rows_list:
+        filtered_df = pd.DataFrame(rows_list)
+
+    return filtered_df
