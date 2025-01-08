@@ -16,11 +16,23 @@ from math import ceil
 import warnings
 
 
+def float_to_int(flt):
+	return int(flt) if flt.isdecimal() else int(float(flt))
+
+
 def price_converter(s):
 	f = s.find("/")
 	if f != -1:
 		s = s[:f].strip()
-	return s.replace("원", "").replace(",", "")
+
+	s = s.replace("원", "").replace(",", "")
+
+	try:
+		i = int(s)
+	except:
+		i = float(s)
+
+	return str(i)
 
 
 # ignore FutureWarnings
@@ -75,14 +87,16 @@ driver.find_element(By.ID, "nbid_menu2").click()
 
 # 500개씩, 특정년도로
 info_count = 500
-year = "2022"
+year = "2014"
 page_num = 2
 Select(driver.find_element(By.ID, "list_num_select")).select_by_value(str(info_count))
 Select(driver.find_element(By.ID, "align_select")).select_by_value(year)
 list_max = driver.find_element(By.XPATH, "/html/body/div[5]/div/div[2]/table/tbody/tr[1]/td[1]/p").text
 
+# 페이지 번호 클릭
 driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[4]/div/a[{page_num}]").send_keys("\n")
 
+# 결과 파일 경로
 RESULT_FILE_PATH = f"../output/공고_기본_정보/original/공고기본정보_{year}_서울_통신_original.csv"
 
 f = open(RESULT_FILE_PATH, "a", newline="")
@@ -93,10 +107,15 @@ attrs = ["id", "공고번호", "공고제목", "발주처(수요기관)", "지�
 
 # wr.writerow(attrs)
 
+# 참조할 참여업체수 기준, 전기넷상 시작 행, csv파일내 시작 id
 criterion = 10
 start_row = 1
-data_row_counter = 393
+csv_row_counter = 458
+
 for row in range(start_row, info_count + 1):
+
+	print(f"[row={row} / csv_row_counter={csv_row_counter}] PROCESSING --- ", end="")
+
 	result = {
 		"id": "", "공고번호": "", "공고제목": "", "발주처": "", "지역제한": "", "기초금액": "", "예정가격": "", "예가범위": "", "A값": "0",
 		"투찰률": "", "참여업체수": "", "공고구분표시": "", "정답사정률": ""
@@ -106,6 +125,7 @@ for row in range(start_row, info_count + 1):
 		driver.find_element(By.XPATH, f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[13]/div").text))
 
 	if prtcptCnum <= criterion:
+		print("PASS")
 		continue
 
 	result["참여업체수"] = str(prtcptCnum)
@@ -123,12 +143,12 @@ for row in range(start_row, info_count + 1):
 	bid_infos = driver.find_elements(By.CSS_SELECTOR,
 	                                 "#content1 > div:nth-child(4) > div:nth-child(1) > div > table > tbody > tr > td")
 
-	result["id"] = data_row_counter
+	result["id"] = csv_row_counter
 	result["공고번호"] = bid_infos[0].text.split(" ")[0]
 	result["발주처"] = bid_infos[2].text.split(" ")[0]
 	result["지역제한"] = bid_infos[3].text
-	result["기초금액"] = str(int(price_converter(bid_infos[5].text)))
-	result["예정가격"] = str(int(price_converter(bid_infos[7].text)))
+	result["기초금액"] = price_converter(bid_infos[5].text)
+	result["예정가격"] = price_converter(bid_infos[7].text)
 	result["투찰률"] = bid_infos[6].text.replace("%", "")
 	result["정답사정률"] = bid_infos[8].text.split("%")[0]
 
@@ -148,7 +168,9 @@ for row in range(start_row, info_count + 1):
 		result["A값"] = str(price_converter(bid_infos[9].text))
 
 	wr.writerow(result.values())
-	data_row_counter += 1
+	csv_row_counter += 1
+
+	print("COMPLETE")
 
 	driver.close()
 	driver.switch_to.window(driver.window_handles[-1])
