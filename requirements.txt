@@ -3,7 +3,7 @@ beautifulsoup4==4.12.3
 bs4==0.0.2
 certifi==2024.8.30
 charset-normalizer==3.4.0
--e git+https://github.com/zoongahn/jungiNet.git@3758e4d2a5dcce6467c5f8141928a61046226a26#egg=common
+-e git+https://github.com/zoongahn/jungiNet.git@fba817e77193b6a0c06084130986237571c1312b#egg=common
 exceptiongroup==1.2.2
 h11==0.14.0
 idna==3.10
