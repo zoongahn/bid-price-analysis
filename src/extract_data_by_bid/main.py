@@ -24,7 +24,7 @@ def print_status(func):
 def get_data_by_page(page_num: int, row_amount: int, dir_path: str):
 	driver.switch_page(page_num)
 
-	start_row = 1
+	start_row = 352
 	end_row = row_amount
 
 	for row in range(start_row, end_row + 1):
@@ -46,7 +46,7 @@ def get_data_by_year(year: int):
 	row_amount_by_page = split_into_chunks_n(end_row, PAGE_BID_TOTAL)
 
 	for page in range(1, len(row_amount_by_page) + 1):
-		get_data_by_page(page, row_amount_by_page[page], dir_path)
+		get_data_by_page(page, row_amount_by_page[page-1], dir_path)
 
 
 @print_status
@@ -55,7 +55,7 @@ def main():
 		driver.open_page(url)
 		driver.login()
 
-		for year in range(2023, 2013, -1):
+		for year in range(2022, 2013, -1):
 			get_data_by_year(year)
 
 	finally:

@@ -50,7 +50,7 @@ def scrap(driver: WebDriverManager, dir_path: str, criterion: int, row: int) -> 
 
 	result = extract_table(driver, prtcptCnum)
 
-	result.to_csv(f"{dir_path}/{bid_code}", index=False, encoding="utf-8-sig")
+	result.to_csv(f"{dir_path}/{bid_code}.csv", index=False, encoding="utf-8-sig")
 
 	driver.close_tab()
 
