@@ -1,10 +1,24 @@
-from typing import Tuple
+from typing import Tuple, Union
 
 from pandas import DataFrame
 
 from common.selenium_junginet import WebDriverManager
 from common.utils import *
 import pandas as pd
+
+
+def find_file_in_folder(file_name: str, folder_path: str) -> Union[str, None]:
+	"""
+	지정된 폴더 내에서 특정 파일을 탐색합니다 (하위 폴더는 제외).
+
+	param file_name: 찾고자 하는 파일명
+	param folder_path: 탐색할 폴더 경로
+	"""
+	for item in os.listdir(folder_path):
+		item_path = os.path.join(folder_path, item)
+		if os.path.isfile(item_path) and item == file_name:
+			return item_path  # 파일 경로 반환
+	return None  # 파일을 찾지 못한 경우
 
 
 def extract_table(driver: WebDriverManager, prtcptCnum: int) -> DataFrame:
@@ -39,6 +53,16 @@ def scrap(driver: WebDriverManager, dir_path: str, criterion: int, row: int) -> 
 
 	if prtcptCnum == -1:
 		print("PASS")
+		return
+
+	# "/"는 파일명에 존재하면 X
+	if bid_code.find("/") != -1:
+		print("INVALID FILE NAME")
+		return
+
+	# 이미 해당 폴더에 다운받은 csv파일이 있는지 확인
+	if find_file_in_folder(f"{bid_code}.csv", dir_path) is not None:
+		print("EXISTING")
 		return
 
 	# 오픈할 공고의 링크

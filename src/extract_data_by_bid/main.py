@@ -4,7 +4,7 @@ from common.selenium_junginet import *
 from extract import scrap
 import pandas as pd
 
-url = "https://www.jungi.net"
+url = "https://www.jungi.net/login"
 PAGE_BID_TOTAL = 500
 
 driver = WebDriverManager(options=ChromeOptionsManager().add_default_options().add_heedless().get_options())
@@ -24,12 +24,15 @@ def print_status(func):
 def get_data_by_page(page_num: int, row_amount: int, dir_path: str):
 	driver.switch_page(page_num)
 
-	start_row = 352
+	start_row = 1
 	end_row = row_amount
 
 	for row in range(start_row, end_row + 1):
-		# 함수 내부에서 csv파일까지 export
-		scrap(driver, dir_path, criterion=10, row=row)
+		# 함수 내부에서 csv파일까지 export함에 주의
+		try:
+			scrap(driver, dir_path, criterion=10, row=row)
+		except:
+			print("UNKNOWN ERROR")
 
 
 @print_status
@@ -46,7 +49,7 @@ def get_data_by_year(year: int):
 	row_amount_by_page = split_into_chunks_n(end_row, PAGE_BID_TOTAL)
 
 	for page in range(1, len(row_amount_by_page) + 1):
-		get_data_by_page(page, row_amount_by_page[page-1], dir_path)
+		get_data_by_page(page, row_amount_by_page[page - 1], dir_path)
 
 
 @print_status
@@ -55,7 +58,7 @@ def main():
 		driver.open_page(url)
 		driver.login()
 
-		for year in range(2022, 2013, -1):
+		for year in range(2021, 2013, -1):
 			get_data_by_year(year)
 
 	finally:
