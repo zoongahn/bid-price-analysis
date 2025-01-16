@@ -33,13 +33,17 @@ def get_data_by_page(page_num: int, row_amount: int, dir_path: str):
 			scrap(driver, dir_path, criterion=10, row=row)
 		except:
 			print("UNKNOWN ERROR")
+			driver.close_tab()
+			bid_code = driver.find_element_by_xpath(
+				f"/html/body/div[5]/div/div[2]/table/tbody/tr[{row}]/td[2]/label").text[1:-1]
+			add_exception(bid_code)
 
 
 @print_status
 def get_data_by_year(year: int):
 	driver.manip_page(PAGE_BID_TOTAL, search_year=year)
 
-	dir_path = f"../../output/공고별_기업_투찰정보_{year}"
+	dir_path = f"../../output/공고별_기업_투찰정보_년도별/공고별_기업_투찰정보_{year}"
 
 	# 해당 경로로 폴더 생성
 	create_folder_if_not_exists(dir_path)
@@ -58,7 +62,7 @@ def main():
 		driver.open_page(url)
 		driver.login()
 
-		for year in range(2021, 2013, -1):
+		for year in range(2018, 2013, -1):
 			get_data_by_year(year)
 
 	finally:

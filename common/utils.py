@@ -50,3 +50,32 @@ def split_into_chunks_n(total: int, n: int) -> list[int]:
 		chunks.append(remainder)
 
 	return chunks
+
+
+def add_exception(bid_code: str, file_path: str = "../../output/공고별_기업_투찰정보_년도별/exception_list.txt", mode: str = "a"):
+	with open(file_path, mode, encoding="utf-8") as file:
+		file.write(f"{bid_code}\n")
+
+
+def search_text_exactly_in_file(target_text: str, file_path: str = "../../output/공고별_기업_투찰정보_년도별/exception_list.txt",
+                                ) -> bool:
+	"""
+	파일에서 특정 텍스트와 완전히 일치하는 줄이 있는지 확인하는 함수.
+
+	Args:
+		file_path (str): 검색할 파일 경로
+		target_text (str): 검색할 텍스트
+
+	Returns:
+		bool: 완전히 일치하는 줄이 있으면 True, 없으면 False
+	"""
+	try:
+		with open(file_path, "r", encoding="utf-8") as file:
+			for line in file:
+				# 줄 끝의 개행 문자를 제거한 뒤 비교
+				if line.strip() == target_text:
+					return True
+		return False
+	except FileNotFoundError:
+		print(f"Error: File '{file_path}' not found.")
+		return False

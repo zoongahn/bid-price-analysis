@@ -51,6 +51,11 @@ def scrap(driver: WebDriverManager, dir_path: str, criterion: int, row: int) -> 
 
 	print(f"[공고번호:{bid_code} / row={row} / 참여업체수={prtcptCnum}] PROCESSING --- ", end="")
 
+	# 해당 공고번호가 exception_list에 존재하는지 확인
+	if search_text_exactly_in_file(bid_code):
+		print("EXCEPTION")
+		return
+
 	if prtcptCnum == -1:
 		print("PASS")
 		return
@@ -58,6 +63,7 @@ def scrap(driver: WebDriverManager, dir_path: str, criterion: int, row: int) -> 
 	# "/"는 파일명에 존재하면 X
 	if bid_code.find("/") != -1:
 		print("INVALID FILE NAME")
+		add_exception(bid_code)
 		return
 
 	# 이미 해당 폴더에 다운받은 csv파일이 있는지 확인
