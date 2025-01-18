@@ -62,7 +62,7 @@ def main():
 		driver.open_page(url)
 		driver.login()
 
-		for year in range(2018, 2013, -1):
+		for year in range(2015, 2013, -1):
 			get_data_by_year(year)
 
 	finally:
