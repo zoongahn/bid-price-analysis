@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import random
+import glob
+import numpy as np
+import matplotlib.pyplot as plt
 
 def plot_histogram(csv_paths, df):
     try:
@@ -213,8 +216,14 @@ def preprocess_datas(basic_info_df, csv_dir_path, percent_range = '+3% ~ -3%'):
         공고번호 = str(row.get('공고번호', ''))
         
         # 1. CSV 파일 존재 확인
-        assert 공고번호 in csv_files, f"CSV 파일을 찾을 수 없음: {공고번호}"
+        try:
+            assert 공고번호 in csv_files, f"CSV 파일을 찾을 수 없음: {공고번호}"
+        except Exception as e:
+            print(f"Error processing {공고번호}: {str(e)}")
+            error_count += 1
+            continue
         
+
         참여업체수 = row.get('참여업체수', 0)
         예가범위 = row.get('예가범위', '')
 
@@ -294,4 +303,3 @@ def merge_csv_files(csv_dir_path):
             df = pd.concat([df, concat_df], ignore_index=True)
     print(count)
     return df
-
