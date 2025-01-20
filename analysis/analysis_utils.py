@@ -293,11 +293,11 @@ def preprocess_datas(basic_info_df, csv_dir_path, percent_range = '+3% ~ -3%'):
         return None
 
 def merge_csv_files(csv_dir_path):
-    count = 0
     csv_paths = glob.glob(os.path.join(csv_dir_path, "*.csv"))
-    df = pd.read_csv(csv_paths[0])
+    count = 1
+    df = pd.read_csv(csv_paths[0], skip_blank_lines=True)
     for i in range(1, len(csv_paths)):
-        concat_df = pd.read_csv(csv_paths[i])
+        concat_df = pd.read_csv(csv_paths[i], skip_blank_lines=True)
         if len(concat_df) > 100:
             count += 1
             df = pd.concat([df, concat_df], ignore_index=True)
