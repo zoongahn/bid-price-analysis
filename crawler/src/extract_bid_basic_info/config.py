@@ -1,0 +1,1 @@
+OUTPUT_FILE_PATH = "../../../data/raw/공고_기본_정보"
