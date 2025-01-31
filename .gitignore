@@ -1,6 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/macos,windows,python,visualstudiocode,pycharm
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,windows,python,visualstudiocode,pycharm
 
+
+data/raw/
+crawler/src/testDir/
+
+
 ### macOS ###
 # General
 .DS_Store
@@ -365,8 +370,3 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,python,visualstudiocode,pycharm
-
-
-
-src/testDir/
-output/공고_기본_정보/original/
