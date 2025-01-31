@@ -25,7 +25,7 @@ CREATE TABLE companies
     id         SERIAL PRIMARY KEY,
     "사업자 등록번호" VARCHAR(20) UNIQUE NOT NULL,
     "업체명"      VARCHAR(255)       NOT NULL,
-    "대표명"      VARCHAR(10)        NOT NULL
+    "대표명"      VARCHAR(30)
 );
 
 CREATE TABLE bids
@@ -39,7 +39,7 @@ CREATE TABLE bids
     "예가대비 투찰률" NUMERIC,
     "기초대비 투찰률" NUMERIC,
     "기초대비 사정률" NUMERIC,
-    "추첨번호"     VARCHAR(10),
+    "추첨번호"     VARCHAR(30),
     "낙찰여부"     BOOLEAN NOT NULL,
     "투찰일시"     TIMESTAMP,
     "비고"       VARCHAR(100)

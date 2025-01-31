@@ -96,9 +96,13 @@ def merge_bids_data(raw_data_dir: str = "../data/raw/공고별_기업_투찰정�
 def process_bids_data(raw_data_path: str = "../data/raw/공고별_기업_투찰정보.csv"):
 	df = pd.read_csv(raw_data_path, encoding="utf-8")
 
+	# 같은 업체명을 가진 다른 행에서 사업자 등록번호를 채움
 	df["사업자 등록번호"] = df.groupby("업체명")["사업자 등록번호"].transform(lambda x: x.ffill().bfill())
 
-	df.to_csv("../data/raw/processed_version.csv", encoding="utf-8", index=False)
+	# 같은 사업자 등록번호를 가진 다른 행에서 대표명을 채움
+	df["대표"] = df.groupby("사업자 등록번호")["대표"].transform(lambda x: x.ffill().bfill())
+
+	df.to_csv("../data/processed/bids_processed_1.csv", encoding="utf-8", index=False)
 
 
 def clean_masking():
@@ -111,7 +115,7 @@ def clean_masking():
 	df = df.dropna(subset=["사업자 등록번호", "업체명"])
 
 	# 마스킹된 사업자 등록번호를 가진 행 필터링
-	masked_rows = df["사업자 등록번호"].str.contains("\*+", regex=True, na=False)
+	masked_rows = df["사업자 등록번호"].str.contains(r"\*+", regex=True, na=False)
 
 	# 온전한 사업자 등록번호를 찾기 위한 딕셔너리 생성
 	company_registry_map = df[~masked_rows].set_index("업체명")["사업자 등록번호"].to_dict()
@@ -127,4 +131,4 @@ def clean_masking():
 
 
 if __name__ == "__main__":
-	clean_masking()
+	process_bids_data("../data/processed/bids_processed.csv")

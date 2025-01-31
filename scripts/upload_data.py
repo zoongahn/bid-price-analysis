@@ -82,16 +82,6 @@ def extract_first_number(value):
 	return float(match.group()) if match else None
 
 
-# 투찰일시 값이 유효한지 확인 후 변환
-def clean_datetime(value):
-	if pd.isna(value) or value in ["0000/00/00 00:00:00", "-", "NaN", "None"]:
-		return None
-	try:
-		return pd.to_datetime(value, errors="coerce")  # 유효하지 않은 값은 NaT로 변환
-	except Exception:
-		return None
-
-
 def upload_bids_and_companies():
 	# PostgreSQL 연결
 	conn = psycopg2.connect(**DB_CONFIG)
@@ -120,7 +110,13 @@ def upload_bids_and_companies():
 	# 업체명 정리: "[최종낙찰]" 문자열 제거 (순위 1인 행에 한정)
 	df.loc[df["순위"] == 1, "업체명"] = df.loc[df["순위"] == 1, "업체명"].str.replace("  [최종낙찰]$", "")
 
-	df["투찰일시"] = df["투찰일시"].apply(clean_datetime)
+	# '0000/00/00 00:00:00' 같은 잘못된 날짜를 None으로 변환
+	df["투찰일시"] = df["투찰일시"].replace("0000/00/00 00:00:00", None)
+
+	# NaT를 PostgreSQL의 NULL(None)로 변환
+	df["투찰일시"] = df["투찰일시"].apply(lambda x: None if pd.isna(x) else x)
+
+	success_count = 0
 
 	# 데이터 삽입
 	for _, row in df.iterrows():
@@ -163,7 +159,11 @@ def upload_bids_and_companies():
 		    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 		""", (notice_id, company_id, row["순위"], row["투찰금액"], row["가격점수"],
 		      row["예가대비 투찰률"], row["기초대비 투찰률"], extract_first_number(row["기초대비 사정률"]),
-		      row["추첨번호"], is_winner, row["투찰일시"], row["비고"]))
+		      row["추첨번호"], is_winner, row["투찰일시"] if row["투찰일시"] else None, row["비고"]))
+
+		success_count += 1
+		print(f"count={success_count} / 사업자 등록번호={row['사업자 등록번호']}")
+
 
 	# 변경 사항 저장 후 종료
 	conn.commit()
