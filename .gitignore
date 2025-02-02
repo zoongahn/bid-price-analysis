@@ -280,6 +280,7 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv_tpot/
 ENV/
 env.bak/
 venv.bak/
