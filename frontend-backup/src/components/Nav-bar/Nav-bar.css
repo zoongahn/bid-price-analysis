@@ -1,0 +1,71 @@
+/* src/components/Nav-bar/Nav-bar.css */
+.nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: #2c3e50;
+    padding: 10px 20px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 50px;
+}
+
+.nav-bar nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.main-menu {
+    list-style: none;
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
+
+.menu-item {
+    position: relative; /* 서브 메뉴의 위치 기준 */
+    margin: 0 15px;
+}
+
+.menu-item > a {
+    color: #fff;
+    text-decoration: none;
+    font-size: 16px;
+}
+
+
+/* 서브 메뉴 초기 상태는 숨김 */
+.sub-menu {
+    display: none;
+    position: absolute;
+    top: 100%; /* 부모 메뉴 바로 아래에 위치 */
+    left: 0;
+    background-color: #34495e;
+    padding: 10px 0;
+    list-style: none;
+    min-width: 150px;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 서브 메뉴 항목 스타일 */
+.sub-menu li {
+    padding: 5px 20px;
+}
+
+.sub-menu li a {
+    color: #fff;
+    text-decoration: none;
+    display: block;
+}
+
+.sub-menu li a:hover {
+    background-color: #3c5a72;
+}
+
+/* 마우스를 올렸을 때 서브 메뉴 보이기 */
+.menu-item:hover .sub-menu {
+    display: block;
+}

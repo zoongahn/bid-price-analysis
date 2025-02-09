@@ -13,10 +13,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+# BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -43,6 +41,8 @@ INSTALLED_APPS = [
 
 	# Custom apps
 	"api",  # API 앱 추가
+
+	"corsheaders",
 ]
 
 MIDDLEWARE = [
@@ -53,6 +53,8 @@ MIDDLEWARE = [
 	'django.contrib.auth.middleware.AuthenticationMiddleware',
 	'django.contrib.messages.middleware.MessageMiddleware',
 	'django.middleware.clickjacking.XFrameOptionsMiddleware',
+	"corsheaders.middleware.CorsMiddleware",  # CORS 미들웨어 추가
+
 ]
 
 ROOT_URLCONF = 'gfconDjango.urls'
@@ -78,14 +80,20 @@ WSGI_APPLICATION = 'gfconDjango.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# .env 파일이 존재하는 경우 로드
+BASE_DIR = Path(__file__).resolve().parent.parent
+dotenv_path = BASE_DIR / ".env"
+if dotenv_path.exists():
+	load_dotenv(dotenv_path)
+
 DATABASES = {
 	'default': {
 		'ENGINE': 'django.db.backends.postgresql',
-		'NAME': "gfcon-db",
-		'USER': "postgres",
-		'PASSWORD': "0000",
-		'HOST': "gfcon.ddnsfree.com",
-		'PORT': "5432",
+		'NAME': os.environ.get('DB_NAME', 'gfcon-db'),
+		'USER': os.environ.get('DB_USER', 'postgres'),
+		'PASSWORD': os.environ.get('DB_PASSWORD', '0000'),
+		'HOST': os.environ.get('DB_HOST', 'gfcon.ddnsfree.com'),
+		'PORT': os.environ.get('DB_PORT', '5432'),
 	}
 }
 
@@ -127,3 +135,15 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# CORS 설정 (React와 통신 허용)
+CORS_ALLOWED_ORIGINS = [
+	"http://localhost:5173",
+	"http://172.30.1.81:5173",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+	"http://localhost:3000",  # React 앱에서 요청을 신뢰하도록 설정
+]
+
+CSRF_COOKIE_SECURE = False  # 개발 환경에서는 False로 설정
