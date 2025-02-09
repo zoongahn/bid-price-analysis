@@ -7,6 +7,9 @@ import {AllCommunityModule, ModuleRegistry, InfiniteRowModelModule} from "ag-gri
 // Register all Community features
 ModuleRegistry.registerModules([AllCommunityModule, InfiniteRowModelModule])
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+
 export default function ServerAgGridTable({columns, tableData}) {
 	// columnDefs / rowData를 state로
 	const [columnDefs, setColumnDefs] = useState(columns || [])
@@ -41,7 +44,7 @@ export default function ServerAgGridTable({columns, tableData}) {
 				console.log("요청 페이지:", page, "정렬 모델:", sortModel, "필터 모델:", filterModel)
 
 				// 실제 API 엔드포인트 URL (백엔드에서 이 쿼리 파라미터들을 처리하도록 구현해야 함)
-				fetch(`http://127.0.0.1:8000/api/bids/?${queryParams.toString()}`)
+				fetch(`${API_BASE_URL}/api/bids/?${queryParams.toString()}`)
 					.then((response) => response.json())
 					.then((data) => {
 						// API 응답은 { results: [...], count: <전체 건수> } 형태여야 합니다.

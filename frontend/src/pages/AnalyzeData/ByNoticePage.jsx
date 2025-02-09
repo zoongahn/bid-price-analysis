@@ -6,7 +6,10 @@ import {BID_COLUMNS, COMPANY_COLUMNS, NOTICE_COLUMNS} from "../../components/Tab
 import MyAgGridTable from "../../components/Table/MyAgGridTable.jsx"
 import HistogramChart from "../../components/Chart/Histogram"
 import PieChartExample from "../../components/Chart/PieChart.jsx"
-import log from "eslint-plugin-react/lib/util/log.js"
+
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
 
 const selectedColumns = ["순위", "사업자등록번호", "업체명", "투찰금액", "기초대비사정률", "비고"]
 
@@ -50,7 +53,7 @@ function ByCompanyPage() {
 
 
 		// 백엔드 엔드포인트 URL (필요한 경우 baseURL과 결합)
-		const url = `http://127.0.0.1:8000/api/by-notice/?${params.toString()}`
+		const url = `${API_BASE_URL}/api/by-notice/?${params.toString()}`
 
 		axios
 			.get(url)

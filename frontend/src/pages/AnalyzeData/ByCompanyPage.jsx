@@ -7,6 +7,10 @@ import MyAgGridTable from "../../components/Table/MyAgGridTable.jsx"
 import HistogramChart from "../../components/Chart/Histogram"
 import PieChartExample from "../../components/Chart/PieChart.jsx"
 
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+
 const selectedColumns = ["공고번호", "공고제목", "투찰금액", "순위", "기초대비사정률", "예가범위", "비고"]
 
 // 모든 컬럼 배열을 합칩니다.
@@ -48,7 +52,7 @@ function ByCompanyPage() {
 		})
 
 		// 백엔드 엔드포인트 URL (필요한 경우 baseURL과 결합)
-		const url = `http://127.0.0.1:8000/api/by-company/?${params.toString()}`
+		const url = `${API_BASE_URL}/api/by-company/?${params.toString()}`
 
 		axios
 			.get(url)
