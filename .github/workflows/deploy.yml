@@ -1,0 +1,41 @@
+name: Build and Deploy React App
+
+# main 브랜치에 push 될 때 트리거됨
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 리포지토리 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Node.js 설치 (프로젝트에 맞는 버전 선택)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      # 3. 의존성 설치
+      - name: Install dependencies
+        run: npm install
+
+      # 4. 빌드 실행 (Vite 또는 create-react-app 프로젝트라면 'npm run build')
+      - name: Build React App
+        run: npm run build
+
+      # 5. 배포: 빌드 산출물(dist 폴더)을 서버로 전송
+      - name: Deploy to Production Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.PRODUCTION_SERVER }}       # 배포 서버 도메인 또는 IP
+          username: ${{ secrets.SERVER_USER }}            # SSH 접속 사용자명
+          key: ${{ secrets.SERVER_SSH_KEY }}              # SSH 비밀키 (GitHub Secrets에 저장)
+          port: ${{ secrets.SERVER_PORT }}                # SSH 포트 (보통 22)
+          source: "dist/"                                 # 빌드 결과물 폴더 (프로젝트에 맞게 조정)
+          target: "/var/www/react/"                       # 서버상의 배포 대상 디렉터리

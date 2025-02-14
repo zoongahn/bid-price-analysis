@@ -140,10 +140,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
 	"http://localhost:5173",
 	"http://172.30.1.81:5173",
+	"http://gfcon.ddnsfree.com:5173",
+	"http://gfcon.ddnsfree.com",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-	"http://localhost:3000",  # React 앱에서 요청을 신뢰하도록 설정
+	"http://localhost:5173",
+	"http://172.30.1.81:5173",
+	"http://gfcon.ddnsfree.com:5173",
 ]
 
 CSRF_COOKIE_SECURE = False  # 개발 환경에서는 False로 설정
