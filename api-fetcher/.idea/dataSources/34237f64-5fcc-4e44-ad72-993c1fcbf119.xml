@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataSource name="admin@gfcon.ddnsfree.com">
+  <database-model serializer="dbm" dbms="MONGO" family-id="MONGO" format-version="4.53">
+    <root id="1">
+      <ServerVersion>8.0.4</ServerVersion>
+    </root>
+    <schema id="2" parent="1" name="admin">
+      <Current>1</Current>
+      <LastIntrospectionLocalTimestamp>2025-02-16.04:45:02</LastIntrospectionLocalTimestamp>
+    </schema>
+    <schema id="3" parent="1" name="config"/>
+    <schema id="4" parent="1" name="local"/>
+    <schema id="5" parent="1" name="testdb"/>
+  </database-model>
+</dataSource>
