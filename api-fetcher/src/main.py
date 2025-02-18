@@ -1,4 +1,5 @@
 import configparser
+import os
 import ssl
 import requests
 from requests.adapters import HTTPAdapter
@@ -102,7 +103,10 @@ def save_fetched_date(file_path: str, date_str: str):
 class DataCollector:
 	def __init__(self):
 		self.config = configparser.RawConfigParser()
-		self.config.read('../config.ini')
+		BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # main.py가 있는 디렉토리
+		CONFIG_PATH = os.path.join(BASE_DIR, '..', 'config.ini')
+
+		self.config.read(CONFIG_PATH)
 
 		db_host = self.config['database']['host']
 		db_port = self.config.getint('database', 'port')
