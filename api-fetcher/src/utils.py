@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 
 
@@ -29,9 +30,13 @@ def load_fetched_date(file_path: str):
 		return set()
 
 
-def save_fetched_date(file_path: str, date_str: str):
+def save_fetched_date(date_str: str, error: bool = False):
 	"""
 	새로 처리한 날짜를 파일에 한 줄씩 기록
 	"""
+	dir_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "date_record")
+	os.makedirs(dir_path, exist_ok=True)
+
+	file_path = os.path.join(dir_path, "fetched_date.txt" if not error else "error_date.txt")
 	with open(file_path, "a", encoding="utf-8") as f:
 		f.write(date_str + "\n")
