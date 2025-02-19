@@ -2,3 +2,4 @@
 .env
 date_record/
 logs/
+src/test/
