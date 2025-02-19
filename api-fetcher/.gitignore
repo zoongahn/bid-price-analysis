@@ -1,0 +1,4 @@
+.venv/
+.env
+date_record/
+logs/

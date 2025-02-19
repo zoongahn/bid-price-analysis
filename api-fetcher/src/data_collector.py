@@ -1,9 +1,10 @@
-import configparser
 import ssl
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
+from urllib.parse import quote_plus
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
 from logger import setup_loggers
 from utils import *
@@ -26,23 +27,19 @@ class SSLContextAdapter(HTTPAdapter):
 # 4) 실제 데이터 수집 -------------------------------------------------
 class DataCollector:
 	def __init__(self):
-		self.config = configparser.RawConfigParser()
-		BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # main.py가 있는 디렉토리
-		CONFIG_PATH = os.path.join(BASE_DIR, '..', 'config.ini')
+		load_dotenv()
 
-		self.config.read(CONFIG_PATH)
+		DB_HOST = os.getenv("DB_HOST")
+		DB_PORT = int(os.getenv("DB_PORT"))  # 기본값 설정 가능
+		DB_USERNAME = quote_plus(os.getenv("DB_USERNAME"))
+		DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD"))
+		DB_NAME = os.getenv("DB_NAME")
 
-		db_host = self.config['database']['host']
-		db_port = self.config.getint('database', 'port')
-		db_user = self.config['database']['username']
-		db_pass = self.config['database']['password']
-		db_name = self.config['database']['db']
+		self.API_BASE_DOMAIN = os.getenv("API_BASE_DOMAIN")
+		self.API_SERVICE_KEY = os.getenv("API_SERVICE_KEY")
 
-		self.api_base_domain = self.config['api']['base_domain']
-		self.api_key = self.config['api']['service_key']
-
-		self.client = MongoClient(f"mongodb://{db_user}:{db_pass}@{db_host}:{db_port}")
-		self.db = self.client.get_database(db_name)
+		self.client = MongoClient(f"mongodb://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}")
+		self.db = self.client.get_database(DB_NAME)
 
 		# 1) SSLContext 생성
 		ssl_ctx = ssl.create_default_context()
@@ -67,14 +64,14 @@ class DataCollector:
 	def collect_data_by_day(self, endpoint_key: str, date: str) -> int:
 		# date should be like "%Y%m%d" (ex. 20230101)
 		endpoint = self.endpoints[endpoint_key]
-		url = self.api_base_domain + endpoint['url']
+		url = self.API_BASE_DOMAIN + endpoint['url']
 		collection = self.db[endpoint_key]
 		# datetime_format = '%Y%m%d%H%M'
 		start_datetime = date + '0000'
 		end_datetime = date + '2359'
 		try:
 			params = {
-				'serviceKey': self.api_key,
+				'serviceKey': self.API_SERVICE_KEY,
 				'pageNo': 1,
 				'numOfRows': 100,
 				'inqryDiv': 1,
