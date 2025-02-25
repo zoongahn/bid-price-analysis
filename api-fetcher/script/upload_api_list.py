@@ -1,7 +1,11 @@
 import json
 import os
-
 from pymongo import MongoClient
+import sys
+
+ROOT_DIR = "/absolute/path/to/project"  # 예: "/home/ubuntu/my_project"
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 from src.init_mongodb import init_mongodb
 
