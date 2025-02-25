@@ -2,12 +2,10 @@ import ssl
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
-from urllib.parse import quote_plus
-from pymongo import MongoClient
-from dotenv import load_dotenv
 
 from logger import setup_loggers
 from utils import *
+from init_mongodb import *
 
 
 # 1) SSLContextAdapter (TLS 1.2 이하 강제 & 보안레벨 낮추기) ----------------
@@ -27,19 +25,11 @@ class SSLContextAdapter(HTTPAdapter):
 # 4) 실제 데이터 수집 -------------------------------------------------
 class DataCollector:
 	def __init__(self):
-		load_dotenv()
 
-		DB_HOST = os.getenv("DB_HOST")
-		DB_PORT = int(os.getenv("DB_PORT"))  # 기본값 설정 가능
-		DB_USERNAME = quote_plus(os.getenv("DB_USERNAME"))
-		DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD"))
-		DB_NAME = os.getenv("DB_NAME")
+		self.db = init_mongodb()
 
 		self.API_BASE_DOMAIN = os.getenv("API_BASE_DOMAIN")
 		self.API_SERVICE_KEY = os.getenv("API_SERVICE_KEY")
-
-		self.client = MongoClient(f"mongodb://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}")
-		self.db = self.client.get_database(DB_NAME)
 
 		# 1) SSLContext 생성
 		ssl_ctx = ssl.create_default_context()
@@ -114,7 +104,7 @@ class DataCollector:
 							item['bidType'] = endpoint['type']
 							item['collected_at'] = datetime.now()
 
-							collection.insert_one(item)
+							collection.update_one({bid_number_attr: bid_number}, {"$set": item}, upsert=True)
 							success_count += 1
 
 						except Exception as e:

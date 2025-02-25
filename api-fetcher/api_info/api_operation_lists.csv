@@ -1,0 +1,56 @@
+일련번호,서비스명,오퍼레이션명(영문),오퍼레이션명(국문)
+1,입찰공고정보서비스,getBidPblancListInfoCnstwk,입찰공고목록 정보에 대한 공사 조회
+2,입찰공고정보서비스,getBidPblancListInfoServc,입찰공고목록 정보에 대한 용역 조회
+3,입찰공고정보서비스,getBidPblancListInfoFrgcpt,입찰공고목록 정보에 대한 외자 조회
+4,입찰공고정보서비스,getBidPblancListInfoThng,입찰공고목록 정보에 대한 물품 조회
+5,입찰공고정보서비스,getBidPblancListInfoThngBsisAmount,입찰공고목록 정보에 대한 물품 기초금액조회
+6,입찰공고정보서비스,getBidPblancListInfoCnstwkBsisAmount,입찰공고목록 정보에 대한 공사 기초금액조회
+7,입찰공고정보서비스,getBidPblancListInfoServcBsisAmount,입찰공고목록 정보에 대한 용역 기초금액조회
+8,입찰공고정보서비스,getBidPblancListInfoChgHstryThng,입찰공고목록 정보에 대한 물품 변경이력조회
+9,입찰공고정보서비스,getBidPblancListInfoChgHstryCnstwk,입찰공고목록 정보에 대한 공사 변경이력조회
+10,입찰공고정보서비스,getBidPblancListInfoChgHstryServc,입찰공고목록 정보에 대한 용역 변경이력조회
+11,입찰공고정보서비스,getBidPblancListInfoCnstwkPPSSrch,나라장터검색조건에 의한 입찰 공고공사조회
+12,입찰공고정보서비스,getBidPblancListInfoServcPPSSrch,나라장터검색조건에 의한 입찰 공고용역조회
+13,입찰공고정보서비스,getBidPblancListInfoFrgcptPPSSrch,나라장터검색조건에 의한 입찰 공고외자조회
+14,입찰공고정보서비스,getBidPblancListInfoThngPPSSrch,나라장터검색조건에 의한 입찰 공고물품조회
+15,입찰공고정보서비스,getBidPblancListInfoLicenseLimit,입찰공고목록 정보에 대한 면허제한정보조회
+16,입찰공고정보서비스,getBidPblancListInfoPrtcptPsblRgn,입찰공고목록 정보에 대한 참가가능지역정보조회
+17,입찰공고정보서비스,getBidPblancListInfoThngPurchsObjPrdct,입찰공고목록 정보에 대한 물품 구매대상물품조회
+18,입찰공고정보서비스,getBidPblancListInfoServcPurchsObjPrdct,입찰공고목록 정보에 대한 용역 구매대상물품조회
+19,입찰공고정보서비스,getBidPblancListInfoFrgcptPurchsObjPrdct,입찰공고목록 정보에 대한 외자 구매대상물품조회
+20,입찰공고정보서비스,getBidPblancListInfoEorderAtchFileInfo,입찰공고목록 정보에 대한 e발주 첨부파일정보조회
+21,입찰공고정보서비스,getBidPblancListInfoEtc,입찰공고목록 정보에 대한 기타 공고조회
+22,입찰공고정보서비스,getBidPblancListInfoEtcPPSSrch,나라장터검색조건에 의한 입찰 공고기타조회
+23,입찰공고정보서비스,getBidPblancListPPIFnlRfpIssAtchFileInfo,입찰공고목록 정보에 대한 혁신장터 최종제안요청서 교부 첨부파일정보조회
+24,입찰공고정보서비스,getBidPblancListBidPrceCalclAInfo,입찰공고목록 정보에 대한 입찰 가격산식A정보조회
+25,입찰공고정보서비스,getBidPblancListInfoEvaluationIndstrytyMfrcInfo,입찰공고목록 정보에 대한 평가 대상주력분야 조회
+1,낙찰정보서비스,getScsbidListSttusThng,낙찰된 목록 현황 물품조회
+2,낙찰정보서비스,getScsbidListSttusCnstwk,낙찰된 목록 현황 공사조회
+3,낙찰정보서비스,getScsbidListSttusServc,낙찰된 목록 현황 용역조회
+4,낙찰정보서비스,getScsbidListSttusFrgcpt,낙찰된 목록 현황 외자조회
+5,낙찰정보서비스,getOpengResultListInfoThng,개찰결과 물품 목록 조회
+6,낙찰정보서비스,getOpengResultListInfoCnstwk,개찰결과 공사 목록 조회
+7,낙찰정보서비스,getOpengResultListInfoServc,개찰결과 용역 목록 조회
+8,낙찰정보서비스,getOpengResultListInfoFrgcpt,개찰결과 외자 목록 조회
+9,낙찰정보서비스,getOpengResultListInfoThngPreparPcDetail,개찰결과 물품 예비가격상세 목록 조회
+10,낙찰정보서비스,getOpengResultListInfoCnstwkPreparPcDetail,개찰결과 공사 예비가격상세 목록 조회
+11,낙찰정보서비스,getOpengResultListInfoServcPreparPcDetail,개찰결과 용역 예비가격상세 목록 조회
+12,낙찰정보서비스,getOpengResultListInfoFrgcptPreparPcDetail,개찰결과 외자 예비가격상세 목록 조회
+13,낙찰정보서비스,getOpengResultListInfoOpengCompt,개찰결과 개찰완료 목록 조회
+14,낙찰정보서비스,getOpengResultListInfoFailing,개찰결과 유찰 목록 조회
+15,낙찰정보서비스,getOpengResultListInfoRebid,개찰결과 재입찰 목록 조회
+16,낙찰정보서비스,getScsbidListSttusThngPPSSrch,나라장터 검색조건에 의한 낙찰된 목록 현황 물품조회
+17,낙찰정보서비스,getScsbidListSttusCnstwkPPSSrch,나라장터 검색조건에 의한 낙찰된 목록 현황 공사조회
+18,낙찰정보서비스,getScsbidListSttusServcPPSSrch,나라장터 검색조건에 의한 낙찰된 목록 현황 용역조회
+19,낙찰정보서비스,getScsbidListSttusFrgcptPPSSrch,나라장터 검색조건에 의한 낙찰된 목록 현황 외자조회
+20,낙찰정보서비스,getOpengResultListInfoThngPPSSrch,나라장터 검색조건에 의한 개찰결과 물품 목록 조회
+21,낙찰정보서비스,getOpengResultListInfoCnstwkPPSSrch,나라장터 검색조건에 의한 개찰결과 공사 목록 조회
+22,낙찰정보서비스,getOpengResultListInfoServcPPSSrch,나라장터 검색조건에 의한 개찰결과 용역 목록 조회
+23,낙찰정보서비스,getOpengResultListInfoFrgcptPPSSrch,나라장터 검색조건에 의한 개찰결과 외자 목록 조회
+1,사용자정보서비스,getDminsttInfo,수요기관정보조회
+2,사용자정보서비스,getPrcrmntCorpBasicInfo,조달업체 기본정보
+3,사용자정보서비스,getPrcrmntCorpIndstrytyInfo,조달업체업종정보조회
+4,사용자정보서비스,getPrcrmntCorpSplyPrdctInfo,조달업체공급물품정보조회
+1,공공데이터개방표준서비스,getDataSetOpnStdBidPblancInfo,데이터셋 개방표준에 따른 입찰공고정보
+2,공공데이터개방표준서비스,getDataSetOpnStdScsbidInfo,데이터셋 개방표준에 따른 낙찰정보
+3,공공데이터개방표준서비스,getDataSetOpnStdCntrctInfo,데이터셋 개방표준에 따른 계약정보
