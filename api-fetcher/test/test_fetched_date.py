@@ -1,6 +1,6 @@
 import os
 import pytest
-from src.utils import load_fetched_date, save_fetched_date
+from common.utils import load_fetched_date, save_fetched_date
 
 # ✅ 테스트용 디렉토리 및 파일 설정
 TEST_DIR = os.path.join(os.path.dirname(__file__), "test_date_record")

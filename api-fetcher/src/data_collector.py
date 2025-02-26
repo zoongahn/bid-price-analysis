@@ -3,9 +3,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
-from logger import setup_loggers
-from utils import *
-from init_mongodb import *
+from common.logger import setup_loggers
+from common.utils import *
+from common.init_mongodb import *
 
 
 # 1) SSLContextAdapter (TLS 1.2 이하 강제 & 보안레벨 낮추기) ----------------

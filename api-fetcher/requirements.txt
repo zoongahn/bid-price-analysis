@@ -2,6 +2,7 @@ certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
 colorlog==6.9.0
+-e git+https://github.com/zoongahn/jungiNet.git@d7be986eccfcdf284e7dec080508760c7868bcb1#egg=common&subdirectory=api-fetcher
 cryptography==44.0.1
 dnspython==2.7.0
 idna==3.10
