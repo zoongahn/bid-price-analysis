@@ -39,7 +39,14 @@ def upload_api_list(csv_file_path: str, collection_name: str = "api_list"):
 		}
 		docs.append(doc)
 
-	server, db = init_mongodb_via_ssh()
+	DJANGO_ENV = os.getenv("DJANGO_ENV")
+	server, db = None, None
+
+	if DJANGO_ENV == "local":
+		server, db = connect_mongodb_via_ssh()
+	else:
+		db = init_mongodb()
+
 	collection = db[collection_name]
 
 	if docs:
@@ -48,7 +55,8 @@ def upload_api_list(csv_file_path: str, collection_name: str = "api_list"):
 	else:
 		print("CSV가 비어 있거나 유효한 데이터가 없습니다.")
 
-	server.stop()
+	if server:
+		server.stop()
 
 
 def add_response_fields_to_operations(csv_file_path, collection_name: str = "api_list"):
@@ -61,7 +69,14 @@ def add_response_fields_to_operations(csv_file_path, collection_name: str = "api
 	field_sample = "샘플데이터"
 	field_desc = "항목설명"
 
-	server, db = init_mongodb_via_ssh()
+	DJANGO_ENV = os.getenv("DJANGO_ENV")
+	server, db = None, None
+
+	if DJANGO_ENV == "local":
+		server, db = connect_mongodb_via_ssh()
+	else:
+		db = init_mongodb()
+
 	collection = db[collection_name]
 
 	docs = list(collection.find({}))
@@ -99,7 +114,8 @@ def add_response_fields_to_operations(csv_file_path, collection_name: str = "api
 
 	print("모든 CSV 행에 대한 response_field 추가가 완료되었습니다.")
 
-	server.stop()
+	if server:
+		server.stop()
 
 
 if __name__ == "__main__":

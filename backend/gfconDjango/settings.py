@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -80,20 +81,40 @@ WSGI_APPLICATION = 'gfconDjango.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# .env 파일이 존재하는 경우 로드
-BASE_DIR = Path(__file__).resolve().parent.parent
-dotenv_path = BASE_DIR / ".env"
-if dotenv_path.exists():
-	load_dotenv(dotenv_path)
+# --------------------------- MONGODB ---------------------------
 
+# 현재 프로젝트의 BASE_DIR
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# db_config를 모듈로 추가
+sys.path.append(os.path.join(BASE_DIR, "db_config"))
+
+# 환경 변수 로드
+from dotenv import load_dotenv
+load_dotenv()
+
+# 환경 감지
+DJANGO_ENV = os.getenv("DJANGO_ENV", "local")
+
+MONGO_SERVER = None
+MONGO_DB = None
+
+if DJANGO_ENV == "production":
+    from db_config.production import init_mongodb  # 절대 경로 사용
+    MONGODB_DB = init_mongodb()
+else:
+    from db_config.local import connect_mongodb_via_ssh  # 절대 경로 사용
+    MONGODB_SERVER, MONGODB_DB = connect_mongodb_via_ssh()
+
+# --------------------------- POSTGRESQL ---------------------------
 DATABASES = {
 	'default': {
 		'ENGINE': 'django.db.backends.postgresql',
-		'NAME': os.environ.get('DB_NAME', 'gfcon-db'),
-		'USER': os.environ.get('DB_USER', 'postgres'),
-		'PASSWORD': os.environ.get('DB_PASSWORD', '0000'),
-		'HOST': os.environ.get('DB_HOST', 'gfcon.ddnsfree.com'),
-		'PORT': os.environ.get('DB_PORT', '5432'),
+		'NAME': os.getenv("POSTGRES_DB"),
+		'USER': os.getenv("POSTGRES_USER"),
+		'PASSWORD': os.getenv("POSTGRES_PASSWORD"),
+		'HOST': os.getenv("POSTGRES_HOST"),
+		'PORT': os.getenv("POSTGRES_PORT"),
 	}
 }
 

@@ -1,8 +1,8 @@
 from rest_framework.viewsets import ModelViewSet
-from ..models import Notice, Company, Bid
-from ..serializers import NoticeSerializer, CompanySerializer, BidSerializer
+from api.models import Company
+from api.serializers import CompanySerializer
 from django.db.models import Count
-from .pagination import CompaniesPagination
+from api.view.refer.pagination import CompaniesPagination
 
 
 class CompanyViewSet(ModelViewSet):

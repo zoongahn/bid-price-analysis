@@ -5,6 +5,7 @@ import CompaniesPage from "./pages/ReferData/CompaniesShow"
 import BidsPage from "./pages/ReferData/BidsShow"
 import ByCompanyPage from "./pages/AnalyzeData/ByCompanyPage"
 import ByNoticePage from "./pages/AnalyzeData/ByNoticePage.jsx"
+import ApiInfoPage from "./pages/ApiInfo/ApiInfoPage.jsx"
 
 function App() {
 	return (
@@ -17,6 +18,7 @@ function App() {
 					<Route path="/origin-data/bids" element={<BidsPage/>}/>
 					<Route path="/analyze/by-notice" element={<ByNoticePage/>}/>
 					<Route path="/analyze/by-company" element={<ByCompanyPage/>}/>
+					<Route path="/api-info" element={<ApiInfoPage/>}/>
 				</Routes>
 			</div>
 		</Router>

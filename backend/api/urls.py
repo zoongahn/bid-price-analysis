@@ -8,7 +8,11 @@ router.register(r'companies', CompanyViewSet)
 router.register(r'bids', BidViewSet, basename='bid')
 router.register(r'by-notice', ByNoticeViewSet, basename='by-notice')
 router.register(r'by-company', ByCompanyViewSet, basename='by-company')
+router.register(r'api-info', ApiInfoViewSet, basename='api-info')
+
 
 urlpatterns = [
 	path('', include(router.urls)),
 ]
+
+

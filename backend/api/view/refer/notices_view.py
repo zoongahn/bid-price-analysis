@@ -5,11 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from .pagination import NoticesPagination
-from ..models import Notice
-from ..serializers import NoticeSerializer
+from api.view.refer.pagination import NoticesPagination
+from api.models import Notice
+from api.serializers import NoticeSerializer
 from decimal import Decimal
-from django.http import JsonResponse
 from django.db.models import Q
 
 # 허용할 컬럼 목록 (모델 필드명과 정확히 일치해야 함)

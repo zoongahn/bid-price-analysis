@@ -1,4 +1,3 @@
-from .notices_view import *
-from .companies_view import *
-from .bids_view import *
+from .refer import *
 from .analyze import *
+from .api_info import *

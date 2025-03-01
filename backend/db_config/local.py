@@ -1,24 +1,17 @@
+import atexit
 import os
-from urllib.parse import quote_plus
+import signal
+import threading
+
 from dotenv import load_dotenv
-from pymongo import MongoClient
 from sshtunnel import SSHTunnelForwarder
+from pymongo import MongoClient
+from urllib.parse import quote_plus
+
+
+server = None
 
 load_dotenv()
-
-
-def init_mongodb():
-	DB_HOST = os.getenv("DB_HOST")
-	DB_PORT = int(os.getenv("DB_PORT"))  # 기본값 설정 가능
-	DB_USERNAME = quote_plus(os.getenv("DB_USERNAME"))
-	DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD"))
-	DB_NAME = os.getenv("DB_NAME")
-
-	client = MongoClient(f"mongodb://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}")
-
-	db = client.get_database(DB_NAME)
-
-	return db
 
 
 def connect_mongodb_via_ssh():
@@ -57,3 +50,30 @@ def connect_mongodb_via_ssh():
 	db = mongo_client.get_database("gfcon")
 
 	return server, db
+
+
+def close_ssh_tunnel():
+	""" Django 종료 시 SSH 터널을 안전하게 닫음 (비동기 처리) """
+	global server
+	if server is not None:
+		def stop_server():
+			""" SSH 터널을 백그라운드에서 종료 """
+			try:
+				server.stop()
+			except Exception as e:
+				print(f"❌ Failed to close SSH Tunnel: {e}")
+
+			# 🛑 Django 종료 강제 실행
+			os._exit(0)  # 🔥 완전 종료!
+
+		# 비동기 스레드에서 실행
+		threading.Thread(target=stop_server, daemon=True).start()
+
+
+
+# 종료 시 SSH 터널 닫기
+atexit.register(close_ssh_tunnel)
+
+# SIGTERM, SIGINT 신호 처리 (CTRL+C, 서버 종료 시)
+signal.signal(signal.SIGTERM, lambda signum, frame: close_ssh_tunnel())
+signal.signal(signal.SIGINT, lambda signum, frame: close_ssh_tunnel())

@@ -3,11 +3,9 @@ import json
 from django.db.models.fields.related import ForeignKey
 from django.db.models.query_utils import Q
 from rest_framework.viewsets import ModelViewSet
-from ..models import Notice, Company, Bid
-from ..serializers import NoticeSerializer, CompanySerializer, BidSerializer
-from .pagination import BidsPagination
-import math
-from django.db import connection
+from api.models import Bid
+from api.serializers import BidSerializer
+from api.view.refer.pagination import BidsPagination
 
 
 def transform_field(field, model):

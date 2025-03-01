@@ -11,25 +11,13 @@ const NavBar = () => {
 						<Link to="/" className="text-white hover:text-gray-300">
 							홈
 						</Link>
-						{/* 서브메뉴 */}
-						<ul className="absolute left-0 hidden mt-0 w-40 bg-white shadow-md rounded-md group-hover:block">
-							<li>
-								<Link
-									to="/home/sub1"
-									className="block px-4 py-2 bg-blue-500 text-white hover:bg-blue-700"
-								>
-									서브 홈 1
-								</Link>
-							</li>
-							<li>
-								<Link
-									to="/home/sub2"
-									className="block px-4 py-2 bg-blue-500 text-white hover:bg-blue-700"
-								>
-									서브 홈 2
-								</Link>
-							</li>
-						</ul>
+					</li>
+
+					{/* API 명세 페이지 */}
+					<li className="relative group mr-0 px-5 border-r border-white/70">
+						<Link to="/api-info" className="text-white hover:text-gray-300">
+							API 정보
+						</Link>
 					</li>
 
 					{/* 원천 데이터 조회 */}
