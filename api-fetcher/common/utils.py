@@ -58,11 +58,11 @@ def parse_csv_to_listdict(csv_file_path):
 	return result
 
 
-def get_operation_info(service_name, operation_number):
+def get_operation_info(service_name: str, operation_number: int):
 	server, client = None, None
 
 	if os.getenv("DJANGO_ENV") == "local":
-		server, self.client = connect_mongodb_via_ssh()
+		server, client = connect_mongodb_via_ssh()
 	else:
 		client = init_mongodb()
 
@@ -81,7 +81,7 @@ def get_operation_info(service_name, operation_number):
 					"$filter": {
 						"input": "$operations",  # operations 배열을 필터링
 						"as": "operation",
-						"cond": {"$eq": ["$$operation.일련번호", operation_number]}  # 일련번호(n) 필터
+						"cond": {"$eq": ["$$operation.일련번호", str(operation_number)]}  # 일련번호(n) 필터
 					}
 				}
 			}

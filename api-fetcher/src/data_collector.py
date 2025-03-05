@@ -48,7 +48,7 @@ class DataCollector:
 		self.session = requests.Session()
 		self.session.mount("https://", SSLContextAdapter(ssl_context=ssl_ctx))
 
-		self.operation_info = get_operation_info(service_name=service_name, operation_number=str(operation_number))
+		self.operation_info = get_operation_info(service_name=service_name, operation_number=operation_number)
 		self.coll_name = self.operation_info["raw_data_collection_name"]
 
 		endpoint = self.operation_info["오퍼레이션명(영문)"]
