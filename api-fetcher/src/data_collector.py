@@ -9,7 +9,6 @@ from pymongo.errors import DuplicateKeyError
 from common.logger import setup_loggers
 from common.utils import *
 from common.init_mongodb import *
-from src.test.test import service_name
 
 
 # 1) SSLContextAdapter (TLS 1.2 이하 강제 & 보안레벨 낮추기) ----------------
@@ -109,10 +108,6 @@ class DataCollector:
 							bid_order = item[bid_order_attr]
 
 							item['collected_at'] = datetime.now()
-
-							# 기존 도큐먼트가 존재하는지 검사 (bidNtceNo + bidNtceOrd 기준)
-							existing_doc = self.collection.find_one(
-								{bid_number_attr: bid_number, bid_order_attr: bid_order})
 
 							# 먼저 insert를 시도, 중복되면 update 수행
 							try:
