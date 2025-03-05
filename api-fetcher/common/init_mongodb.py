@@ -12,13 +12,10 @@ def init_mongodb():
 	DB_PORT = int(os.getenv("DB_PORT"))  # 기본값 설정 가능
 	DB_USERNAME = quote_plus(os.getenv("DB_USERNAME"))
 	DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD"))
-	DB_NAME = os.getenv("DB_NAME")
 
 	client = MongoClient(f"mongodb://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}")
 
-	db = client.get_database(DB_NAME)
-
-	return db
+	return client
 
 
 def connect_mongodb_via_ssh():
@@ -54,6 +51,4 @@ def connect_mongodb_via_ssh():
 	mongodb_url = f"mongodb://{MONGODB_USER}:{MONGODB_PASSWORD}@localhost:{local_port}/?authSource={MONGODB_AUTH_SOURCE}"
 	mongo_client = MongoClient(mongodb_url)
 
-	db = mongo_client.get_database("gfcon")
-
-	return server, db
+	return server, mongo_client

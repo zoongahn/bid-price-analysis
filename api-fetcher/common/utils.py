@@ -2,6 +2,8 @@ import csv
 import os
 from datetime import datetime, timedelta
 
+from common.init_mongodb import connect_mongodb_via_ssh
+
 
 def get_project_root():
 	return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,16 +35,16 @@ def load_fetched_date(file_path: str):
 		return set()
 
 
-def save_fetched_date(date_str: str, error: bool = False):
+def record_txt(record_str: str, txt_file_name: str = "fetched_date.txt"):
 	"""
 	새로 처리한 날짜를 파일에 한 줄씩 기록
 	"""
 	dir_path = os.path.join(get_project_root(), "date_record")
 	os.makedirs(dir_path, exist_ok=True)
 
-	file_path = os.path.join(dir_path, "fetched_date.txt" if not error else "error_date.txt")
+	file_path = os.path.join(dir_path, txt_file_name)
 	with open(file_path, "a", encoding="utf-8") as f:
-		f.write(date_str + "\n")
+		f.write(record_str + "\n")
 
 
 def parse_csv_to_listdict(csv_file_path):
@@ -53,4 +55,35 @@ def parse_csv_to_listdict(csv_file_path):
 			# DictReader가 헤더를 기준으로 컬럼명:값 매핑
 			# 필요하다면 컬럼명 변환/trim 처리 가능
 			result.append(dict(row))
+	return result
+
+
+def get_operation_info(service_name, operation_number):
+	server, client = connect_mongodb_via_ssh()
+
+	db = client.get_database("gfcon")
+
+	collection = db["api_list"]
+
+	# Aggregation Pipeline 사용
+	pipeline = [
+		{"$match": {"service_name": service_name}},  # service_name이 일치하는 문서 조회
+		{
+			"$project": {
+				"_id": 0,  # _id 필드 제외 (선택 사항)
+				"service_name": 1,
+				"filtered_operations": {
+					"$filter": {
+						"input": "$operations",  # operations 배열을 필터링
+						"as": "operation",
+						"cond": {"$eq": ["$$operation.일련번호", operation_number]}  # 일련번호(n) 필터
+					}
+				}
+			}
+		}
+	]
+
+	# MongoDB에서 쿼리 실행
+	result = list(collection.aggregate(pipeline))[0]["filtered_operations"][0]
+
 	return result

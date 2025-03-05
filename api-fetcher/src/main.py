@@ -1,8 +1,11 @@
 from data_collector import DataCollector
 
 if __name__ == '__main__':
-	start_year = 2010
-	end_year = 2024
+	start_date = '2010-01-01'
+	end_date = '2024-12-31'
 
-	collector = DataCollector()
-	collector.collect_all_data(start_year, end_year)
+	service_name = '입찰공고정보서비스'
+	operation_number = 1
+
+	collector = DataCollector(service_name, operation_number)
+	collector.collect_all_data(start_date, end_date)
