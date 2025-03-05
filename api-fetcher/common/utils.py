@@ -2,7 +2,7 @@ import csv
 import os
 from datetime import datetime, timedelta
 
-from common.init_mongodb import connect_mongodb_via_ssh
+from common.init_mongodb import *
 
 
 def get_project_root():
@@ -59,7 +59,12 @@ def parse_csv_to_listdict(csv_file_path):
 
 
 def get_operation_info(service_name, operation_number):
-	server, client = connect_mongodb_via_ssh()
+	server, client = None, None
+
+	if os.getenv("DJANGO_ENV") == "local":
+		server, self.client = connect_mongodb_via_ssh()
+	else:
+		client = init_mongodb()
 
 	db = client.get_database("gfcon")
 

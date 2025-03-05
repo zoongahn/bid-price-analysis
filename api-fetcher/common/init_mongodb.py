@@ -8,12 +8,16 @@ load_dotenv()
 
 
 def init_mongodb():
-	DB_HOST = os.getenv("DB_HOST")
-	DB_PORT = int(os.getenv("DB_PORT"))  # 기본값 설정 가능
-	DB_USERNAME = quote_plus(os.getenv("DB_USERNAME"))
-	DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD"))
+	MONGODB_HOST = os.getenv("MONGODB_HOST")
+	MONGODB_PORT = int(os.getenv("MONGODB_PORT"))
+	MONGODB_USER = quote_plus(os.getenv("MONGODB_USER"))
+	MONGODB_PASSWORD = quote_plus(os.getenv("MONGODB_PASSWORD"))
+	MONGODB_AUTH_SOURCE = os.getenv("MONGODB_AUTH_SOURCE")
 
-	client = MongoClient(f"mongodb://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}")
+
+	mongodb_url = f"mongodb://{MONGODB_USER}:{MONGODB_PASSWORD}@{MONGODB_HOST}:{MONGODB_PORT}/?authSource={MONGODB_AUTH_SOURCE}"
+
+	client = MongoClient(mongodb_url)
 
 	return client
 

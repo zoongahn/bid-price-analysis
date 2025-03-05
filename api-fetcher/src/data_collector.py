@@ -29,6 +29,7 @@ class SSLContextAdapter(HTTPAdapter):
 class DataCollector:
 	def __init__(self, service_name: str, operation_number: int):
 		self.server, self.client = None, None
+
 		if os.getenv("DJANGO_ENV") == "local":
 			self.server, self.client = connect_mongodb_via_ssh()
 		else:
@@ -51,6 +52,7 @@ class DataCollector:
 		self.coll_name = self.operation_info["raw_data_collection_name"]
 
 		endpoint = self.operation_info["오퍼레이션명(영문)"]
+
 		self.url = f"{self.API_BASE_DOMAIN}/{endpoint}"
 
 		db = self.client.get_database("gfcon_raw")
@@ -85,6 +87,8 @@ class DataCollector:
 			self.loggers["day"].day(f'{self.coll_name} - {date} - 전체 데이터 수: {total_count}')
 
 			total_success = 0
+			total_insert = 0
+			total_update = 0
 			total_failed = 0
 
 			for page in range(1, total_pages + 1):
@@ -112,20 +116,21 @@ class DataCollector:
 							# 먼저 insert를 시도, 중복되면 update 수행
 							try:
 								self.collection.insert_one(item)  # 새로운 데이터 삽입
+								total_insert += 1
 							except DuplicateKeyError:
 								# 중복된 경우 update 수행
+								item.pop("_id", None)
 								self.collection.update_one(
 									{bid_number_attr: bid_number, bid_order_attr: bid_order},
 									{"$set": item}
 								)
 								record_txt(f"{bid_number} - {bid_order}", "duplicate_notices.txt")
-							finally:
-								success_count += 1
+								total_update += 1
 
 						except Exception as e:
 							self.loggers["application"].error(
-								f'저장 실패: {item["bidNtceNo"] - item["bidNtceOrd"]}, 에러: {e}')
-							self.loggers["error"].error(f'저장 실패: {item["bidNtceNo"] - item["bidNtceOrd"]}, 에러: {e}')
+								f'저장 실패: {item["bidNtceNo"]} - {item["bidNtceOrd"]}, 에러: {e}')
+							self.loggers["error"].error(f'저장 실패: {item["bidNtceNo"]} - {item["bidNtceOrd"]}, 에러: {e}')
 							total_failed += 1
 
 					total_success += success_count
