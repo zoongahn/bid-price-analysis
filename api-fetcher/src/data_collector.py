@@ -92,6 +92,9 @@ class DataCollector:
 			total_failed = 0
 
 			for page in range(1, total_pages + 1):
+				page_insert_count = 0
+				page_update_count = 0
+
 				params['pageNo'] = page
 				response = self.session.get(self.url, params=params)
 				data = response.json()
@@ -116,7 +119,7 @@ class DataCollector:
 							# 먼저 insert를 시도, 중복되면 update 수행
 							try:
 								self.collection.insert_one(item)  # 새로운 데이터 삽입
-								total_insert += 1
+								page_insert_count += 1
 							except DuplicateKeyError:
 								# 중복된 경우 update 수행
 								item.pop("_id", None)
@@ -125,7 +128,7 @@ class DataCollector:
 									{"$set": item}
 								)
 								record_txt(f"{bid_number} - {bid_order}", "duplicate_notices.txt")
-								total_update += 1
+								page_update_count += 1
 
 						except Exception as e:
 							self.loggers["application"].error(
@@ -133,12 +136,17 @@ class DataCollector:
 							self.loggers["error"].error(f'저장 실패: {item["bidNtceNo"]} - {item["bidNtceOrd"]}, 에러: {e}')
 							total_failed += 1
 
+					success_count = page_insert_count + page_update_count
+					total_insert += page_insert_count
+					total_update += page_update_count
 					total_success += success_count
 					self.loggers['application'].fetch(
-						f"{self.coll_name} - {page}/{total_pages} 페이지 처리완료: {success_count}건")
+						f"{self.coll_name} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
 
-			self.loggers["application"].day(f"{self.coll_name} - {date} - 최종 저장 건수: {total_success}")
-			self.loggers["day"].day(f"{self.coll_name} - {date} - 최종 저장 건수: {total_success}")
+			self.loggers["application"].day(
+				f"{self.coll_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
+			self.loggers["day"].day(
+				f"{self.coll_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
 			return total_success
 
 		except Exception as e:
