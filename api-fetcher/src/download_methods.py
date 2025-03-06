@@ -1,4 +1,4 @@
-from common.utils import get_operation_info, load_fetched_date
+from common.utils import get_operation_info, load_fetched_date, record_txt
 from data_collector import DataCollector
 
 
@@ -44,5 +44,17 @@ def get_data_by_date_file(txt_file_name: str):
 	service_name, operation_number = input_handler()
 	collector = DataCollector(service_name, operation_number)
 
+	error_date_list = []
+
 	for date in date_set:
-		collector.collect_data_by_day(date)
+		try:
+			collector.collect_data_by_day(date)
+		except Exception as e:
+			error_date_list.append(date)
+			print(f"Error: {e}")
+
+	if len(error_date_list) > 0:
+		for date in error_date_list:
+			record_txt(date, "get_data_by_date_file__error_date.txt")
+	else:
+		print("All data has been collected.")
