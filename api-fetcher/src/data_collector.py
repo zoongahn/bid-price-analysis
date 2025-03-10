@@ -48,18 +48,34 @@ class DataCollector:
 		self.session = requests.Session()
 		self.session.mount("https://", SSLContextAdapter(ssl_context=ssl_ctx))
 
-		self.operation_info = get_operation_info(service_name=service_name, operation_number=operation_number)
-		self.coll_name = self.operation_info["raw_data_collection_name"]
+		service_info = get_service_info(service_name=service_name, operation_number=operation_number)
 
-		endpoint = self.operation_info["오퍼레이션명(영문)"]
+		service_endpoint = service_info["service_endpoint"]
+		operation_info = service_info["filtered_operations"][0]
+		operation_endpoint = operation_info["오퍼레이션명(영문)"]
+		self.collection_name = operation_info["raw_data_collection_name"]
 
-		self.url = f"{self.API_BASE_DOMAIN}/{endpoint}"
+		self.url = f"{self.API_BASE_DOMAIN}/{service_endpoint}/{operation_endpoint}"
 
 		db = self.client.get_database("gfcon_raw")
 
-		self.collection = db[self.coll_name]
+		self.collection = db[self.collection_name]
 
 		self.loggers = setup_loggers()
+
+	def record_txt(self, record_str: str, txt_file_name):
+		"""
+		새로 처리한 날짜를 파일에 한 줄씩 기록
+		"""
+		root_dir_path = os.path.join(get_project_root(), "date_record")
+		os.makedirs(root_dir_path, exist_ok=True)
+
+		collection_name_dir_path = os.path.join(root_dir_path, self.collection_name)
+		os.makedirs(collection_name_dir_path, exist_ok=True)
+
+		file_path = os.path.join(collection_name_dir_path, txt_file_name)
+		with open(file_path, "a", encoding="utf-8") as f:
+			f.write(record_str + "\n")
 
 	def collect_data_by_day(self, date: str) -> int | None | Any:
 		start_datetime = date + '0000'
@@ -70,8 +86,8 @@ class DataCollector:
 				'pageNo': 1,
 				'numOfRows': 100,
 				'inqryDiv': 1,
-				'inqryBgnDt': start_datetime,
 				'type': 'json',
+				'inqryBgnDt': start_datetime,
 				'inqryEndDt': end_datetime
 			}
 
@@ -83,8 +99,8 @@ class DataCollector:
 			num_of_rows = params['numOfRows']
 			total_pages = -(-total_count // num_of_rows)
 
-			self.loggers["application"].day(f'{self.coll_name} - {date} - 전체 데이터 수: {total_count}')
-			self.loggers["day"].day(f'{self.coll_name} - {date} - 전체 데이터 수: {total_count}')
+			self.loggers["application"].day(f'{self.collection_name} - {date} - 전체 데이터 수: {total_count}')
+			self.loggers["day"].day(f'{self.collection_name} - {date} - 전체 데이터 수: {total_count}')
 
 			total_success = 0
 			total_insert = 0
@@ -127,7 +143,6 @@ class DataCollector:
 									{bid_number_attr: bid_number, bid_order_attr: bid_order},
 									{"$set": item}
 								)
-								record_txt(f"{bid_number} - {bid_order}", "duplicate_notices.txt")
 								page_update_count += 1
 
 						except Exception as e:
@@ -141,20 +156,20 @@ class DataCollector:
 					total_update += page_update_count
 					total_success += success_count
 					self.loggers['application'].fetch(
-						f"{self.coll_name} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
+						f"{self.collection_name} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
 
 			self.loggers["application"].day(
-				f"{self.coll_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
+				f"{self.collection_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
 			self.loggers["day"].day(
-				f"{self.coll_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
+				f"{self.collection_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
 			return total_success
 
 		except Exception as e:
-			self.loggers["application"].error(f"{self.coll_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)
-			self.loggers["error"].error(f"{self.coll_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)
+			self.loggers["application"].error(f"{self.collection_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)
+			self.loggers["error"].error(f"{self.collection_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)
 			raise
 
-	def collect_all_data(self, start_date: str, end_date: str) -> dict:
+	def collect_all_data(self, start_date: str, end_date: str):
 		# 복합 인덱스 생성 (이미 존재하면 무시됨)
 		self.collection.create_index([("bidNtceNo", 1), ("bidNtceOrd", 1)], unique=True)
 
@@ -165,7 +180,7 @@ class DataCollector:
 		for date in date_list:
 			try:
 				result = self.collect_data_by_day(date)
-				record_txt(date, "fetched_date.txt")
+				self.record_txt(date, "fetched_date.txt")
 			except Exception as e:
-				self.loggers["error"].error(f"{self.coll_name} - {date} - 수집 실패: {str(e)}")
-				record_txt(date, "error_date.txt")
+				self.loggers["error"].error(f"{self.collection_name} - {date} - 수집 실패: {str(e)}")
+				self.record_txt(date, "error_date.txt")

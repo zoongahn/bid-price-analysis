@@ -116,17 +116,3 @@ def add_response_fields_to_operations(csv_file_path, collection_name: str = "api
 
 	if server:
 		server.stop()
-
-
-if __name__ == "__main__":
-	API_OPER_LIST_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api_info",
-	                                  "api_operation_lists.csv")
-	upload_api_list(API_OPER_LIST_PATH)
-
-service_list = ["입찰공고정보서비스", "낙찰정보서비스", "계약정보서비스", "사용자정보서비스", "공공데이터개방표준서비스"]
-
-for service in service_list:
-	OPER_FIELDS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api_info",
-	                                "operation_fields", "processed", f"{service}.csv")
-
-	add_response_fields_to_operations(OPER_FIELDS_PATH)

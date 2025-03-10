@@ -36,18 +36,6 @@ def load_fetched_date(file_name: str):
 		return set()
 
 
-def record_txt(record_str: str, txt_file_name: str = "fetched_date.txt"):
-	"""
-	새로 처리한 날짜를 파일에 한 줄씩 기록
-	"""
-	dir_path = os.path.join(get_project_root(), "date_record")
-	os.makedirs(dir_path, exist_ok=True)
-
-	file_path = os.path.join(dir_path, txt_file_name)
-	with open(file_path, "a", encoding="utf-8") as f:
-		f.write(record_str + "\n")
-
-
 def parse_csv_to_listdict(csv_file_path):
 	result = []
 	with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
@@ -59,7 +47,7 @@ def parse_csv_to_listdict(csv_file_path):
 	return result
 
 
-def get_operation_info(service_name: str, operation_number: int):
+def get_service_info(service_name: str, operation_number: int):
 	server, client = None, None
 
 	if os.getenv("DJANGO_ENV") == "local":
@@ -78,6 +66,7 @@ def get_operation_info(service_name: str, operation_number: int):
 			"$project": {
 				"_id": 0,  # _id 필드 제외 (선택 사항)
 				"service_name": 1,
+				"service_endpoint": 1,
 				"filtered_operations": {
 					"$filter": {
 						"input": "$operations",  # operations 배열을 필터링
@@ -90,6 +79,6 @@ def get_operation_info(service_name: str, operation_number: int):
 	]
 
 	# MongoDB에서 쿼리 실행
-	result = list(collection.aggregate(pipeline))[0]["filtered_operations"][0]
+	result = list(collection.aggregate(pipeline))[0]
 
 	return result

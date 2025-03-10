@@ -1,4 +1,4 @@
-from common.utils import get_operation_info, load_fetched_date, record_txt
+from common.utils import *
 from data_collector import DataCollector
 
 
@@ -16,7 +16,7 @@ def input_handler():
 	service_name = service_name_list[int(input("서비스명: "))]
 	operation_number = int(input("오퍼레이션 일련번호: "))
 
-	operation_name = get_operation_info(service_name, operation_number)["오퍼레이션명(국문)"]
+	operation_name = get_service_info(service_name, operation_number)["filtered_operations"][0]["오퍼레이션명(국문)"]
 
 	while True:
 		print(f"서비스명: {service_name} / 오퍼레이션명: {operation_name}")
@@ -55,6 +55,6 @@ def get_data_by_date_file(txt_file_name: str):
 
 	if len(error_date_list) > 0:
 		for date in error_date_list:
-			record_txt(date, "get_data_by_date_file__error_date.txt")
+			collector.record_txt(date, "get_data_by_date_file__error_date.txt")
 	else:
 		print("All data has been collected.")
