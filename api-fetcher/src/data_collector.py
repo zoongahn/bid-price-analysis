@@ -63,6 +63,8 @@ class DataCollector:
 
 		self.loggers = setup_loggers()
 
+		self.unique_fields = operation_info["unique_fields"]
+
 	def record_txt(self, record_str: str, txt_file_name):
 		"""
 		새로 처리한 날짜를 파일에 한 줄씩 기록
@@ -123,13 +125,6 @@ class DataCollector:
 					success_count = 0
 					for item in items:
 						try:
-							# 공고번호 및 순번 필드명 정의
-							bid_number_attr = 'bidNtceNo'
-							bid_order_attr = 'bidNtceOrd'
-
-							bid_number = item[bid_number_attr]
-							bid_order = item[bid_order_attr]
-
 							item['collected_at'] = datetime.now()
 
 							# 먼저 insert를 시도, 중복되면 update 수행
@@ -139,8 +134,13 @@ class DataCollector:
 							except DuplicateKeyError:
 								# 중복된 경우 update 수행
 								item.pop("_id", None)
+
+								update_query = {}
+								for uf in self.unique_fields:
+									update_query[uf] = item[uf]
+
 								self.collection.update_one(
-									{bid_number_attr: bid_number, bid_order_attr: bid_order},
+									update_query,
 									{"$set": item}
 								)
 								page_update_count += 1
@@ -170,8 +170,12 @@ class DataCollector:
 			raise
 
 	def collect_all_data(self, start_date: str, end_date: str):
+		unique_fields_query: list[tuple] = []  # Like [("bidNtceNo", 1), ("bidNtceOrd", 1)]
+		for uf in self.unique_fields:
+			unique_fields_query.append(tuple([uf, 1]))
+
 		# 복합 인덱스 생성 (이미 존재하면 무시됨)
-		self.collection.create_index([("bidNtceNo", 1), ("bidNtceOrd", 1)], unique=True)
+		self.collection.create_index(unique_fields_query, unique=True)
 
 		date_list = list(generate_dates(start_date, end_date))
 
