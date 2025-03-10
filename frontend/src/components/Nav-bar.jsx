@@ -77,7 +77,7 @@ const NavBar = () => {
 					</li>
 
 					{/* 데이터 예측 */}
-					<li className="relative group mr-0 px-5 border-r border-white/70 pr-7">
+					<li className="relative group mr-0 px-5 border-r border-white/70">
 						<Link to="/prediction" className="text-white hover:text-gray-300">
 							데이터 예측
 						</Link>
