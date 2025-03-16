@@ -23,7 +23,7 @@ def generate_dates(start_date_str, end_date_str, input_date_format="%Y-%m-%d", o
 		current_date += timedelta(days=1)
 
 
-def load_fetched_date(file_name: str):
+def load_date_record(file_name: str):
 	"""
 	이미 처리된 날짜(YYYY-MM-DD 문자열)를 저장한 파일을 읽어와 set으로 반환
 	파일이 없거나 비어있으면 빈 set 반환

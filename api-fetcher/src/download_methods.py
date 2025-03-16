@@ -13,7 +13,9 @@ def input_handler():
 
 	for k, v in service_name_list.items():
 		print(f"{k}. {v}")
-	service_name = service_name_list[int(input("서비스명: "))]
+	service_name = service_name_list[int(input("서비스 번호: "))]
+
+	operation_name_list =
 	operation_number = int(input("오퍼레이션 일련번호: "))
 
 	operation_name = get_service_info(service_name, operation_number)["filtered_operations"][0]["오퍼레이션명(국문)"]
@@ -40,7 +42,7 @@ def get_data_in_full_range():
 
 
 def get_data_by_date_file(txt_file_name: str):
-	date_set = sorted(list(load_fetched_date(txt_file_name)))
+	date_set = sorted(list(load_date_record(txt_file_name)))
 	service_name, operation_number = input_handler()
 	collector = DataCollector(service_name, operation_number)
 

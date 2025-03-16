@@ -14,5 +14,3 @@ router.register(r'api-info', ApiInfoViewSet, basename='api-info')
 urlpatterns = [
 	path('', include(router.urls)),
 ]
-
-
