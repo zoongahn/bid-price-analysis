@@ -82,3 +82,31 @@ def get_service_info(service_name: str, operation_number: int):
 	result = list(collection.aggregate(pipeline))[0]
 
 	return result
+
+
+def input_handler():
+	service_name_list = {
+		1: "입찰공고정보서비스",
+		2: "낙찰정보서비스",
+		3: "사용자정보서비스",
+		4: "공공데이터개방표준서비스",
+		5: "계약정보표준서비스"
+	}
+
+	for k, v in service_name_list.items():
+		print(f"{k}. {v}")
+	service_name = service_name_list[int(input("서비스 번호: "))]
+
+	operation_number = int(input("오퍼레이션 일련번호: "))
+
+	operation_name = get_service_info(service_name, operation_number)["filtered_operations"][0]["오퍼레이션명(국문)"]
+
+	while True:
+		print(f"서비스명: {service_name} / 오퍼레이션명: {operation_name}")
+		user_input = input("다음 API를 가져오시려면 ENTER (or 'exit'):")
+		if user_input == "":
+			break
+		elif user_input == "exit":
+			exit()
+
+	return service_name, operation_number
