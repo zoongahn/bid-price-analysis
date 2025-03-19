@@ -78,27 +78,9 @@ const NavBar = () => {
 
 					{/* 데이터 예측 */}
 					<li className="relative group mr-0 px-5 border-r border-white/70">
-						<Link to="/prediction" className="text-white hover:text-gray-300">
-							데이터 예측
+						<Link to="/model" className="text-white hover:text-gray-300">
+							모델 분석
 						</Link>
-						<ul className="absolute left-0 hidden mt-0 w-40 bg-white shadow-md rounded-md group-hover:block">
-							<li>
-								<Link
-									to="/prediction/sub1"
-									className="block px-4 py-2 bg-blue-500 text-white hover:bg-blue-700"
-								>
-									서브 예측 1
-								</Link>
-							</li>
-							<li>
-								<Link
-									to="/prediction/sub2"
-									className="block px-4 py-2 bg-blue-500 text-white hover:bg-blue-700"
-								>
-									서브 예측 2
-								</Link>
-							</li>
-						</ul>
 					</li>
 
 					{/* 추가 정보 */}

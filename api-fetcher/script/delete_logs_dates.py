@@ -5,7 +5,7 @@ import shutil
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 삭제할 디렉토리 목록
-directories = ['logs', 'date_record']
+directories = ['logs', 'fetch_record']
 
 for dirname in directories:
 	target_dir = os.path.join(project_root, dirname)

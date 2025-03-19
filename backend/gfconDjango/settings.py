@@ -86,6 +86,7 @@ WSGI_APPLICATION = 'gfconDjango.wsgi.application'
 # 현재 프로젝트의 BASE_DIR
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
 # db_config를 모듈로 추가
 sys.path.append(os.path.join(BASE_DIR, "db_config"))
 
