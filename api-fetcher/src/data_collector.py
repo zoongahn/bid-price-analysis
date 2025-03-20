@@ -59,9 +59,9 @@ class DataCollector:
 
 		self.url = f"{self.API_BASE_DOMAIN}/{service_endpoint}/{operation_endpoint}"
 
-		db = self.client.get_database("gfcon_raw")
+		self.db = self.client.get_database("gfcon_raw")
 
-		self.collection = db[self.collection_name]
+		self.collection = self.db[self.collection_name]
 
 		self.loggers = setup_loggers()
 
@@ -314,12 +314,24 @@ class DataCollector:
 		# 복합 인덱스 생성 (이미 존재하면 무시됨)
 		self.collection.create_index(unique_fields_query, unique=True)
 
-		notice_number_list = self.get_notice_number_list()
+		collection_notices = self.db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")
+
+		# 1. bids_info_is_collected=False인 공고번호만 가져오기
+		notice_number_list = [
+			doc["bidNtceNo"]
+			for doc in collection_notices.find(
+				{"bids_info_is_collected": False},
+				{"bidNtceNo": 1, "_id": 0}
+			)
+		]
+
+		if not notice_number_list:
+			self.loggers["application"].info("✅ 수집할 공고가 없습니다.")
+			return
 
 		self.loggers["application"].info(f"{notice_number_list[0]} ~ {notice_number_list[-1]} 내 데이터를 모두 가져옵니다.")
 
 		pending_notices = notice_number_list
-
 		attempt = 1
 
 		while pending_notices:
@@ -329,6 +341,13 @@ class DataCollector:
 				try:
 					result = self.collect_bids_by_NtceNo(notice_number)
 					self.record_txt(notice_number, "fetched_notice.txt")
+
+					# 수집이 완료되면 해당 공고의 bids_info_is_collected를 True로 업데이트
+					collection_notices.update_one(
+						{"bidNtceNo": notice_number},
+						{"$set": {"bids_info_is_collected": True}}
+					)
+
 				except Exception as e:
 					self.loggers["error"].error(f"{self.collection_name} - {notice_number} - 수집 실패: {str(e)}")
 					self.record_txt(notice_number, "error_notice.txt")
