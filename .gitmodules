@@ -1,0 +1,3 @@
+[submodule "backend/statsModelsPredict"]
+	path = backend/statsModelsPredict
+	url = https://github.com/mikoesnim0/bidPriceStatsAnalysis.git

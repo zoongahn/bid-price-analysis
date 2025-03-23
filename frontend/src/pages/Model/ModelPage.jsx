@@ -33,7 +33,7 @@ const modelPage = () => {
 
 	const chartTabs = [
 		{name: "구간별 모델 성능 비교", component: <ModelBarChart data={sampleData}/>},
-		{name: "Test-A", component: <AreaChartWrapper/>},
+		{name: "예측값 vs 실제값", component: <AreaChartWrapper/>},
 		{name: "Test-B", component: <div>{name}</div>},
 	]
 
