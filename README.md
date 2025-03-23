@@ -1,3 +1,5 @@
+# 조달로B 분석서비스 프로젝트 구조도
+```
 BID-PRICE-ANALYSIS/
 ├── api-fetcher/ # API 수집기 (데이터 수집 및 요청 처리)
     ├── .env # 환경 변수 설정 파일
@@ -161,6 +163,6 @@ BID-PRICE-ANALYSIS/
             ├── BidsShow.jsx                # 투찰데이터 조회
             ├── CompaniesShow.jsx           # 업체데이터 조회
             └── NoticesShow.jsx             # 공고데이터 조회
-
+```
 
 
