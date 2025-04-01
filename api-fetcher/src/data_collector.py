@@ -28,7 +28,7 @@ class SSLContextAdapter(HTTPAdapter):
 class DataCollector:
 	def __init__(self):
 
-		service_name, operation_number = input_handler()
+		self.service_name, self.operation_number = input_handler()
 
 		self.server, self.client = None, None
 
@@ -50,7 +50,7 @@ class DataCollector:
 		self.session = requests.Session()
 		self.session.mount("https://", SSLContextAdapter(ssl_context=ssl_ctx))
 
-		service_info = get_service_info(service_name=service_name, operation_number=operation_number)
+		service_info = get_service_info(service_name=self.service_name, operation_number=self.operation_number)
 
 		service_endpoint = service_info["service_endpoint"]
 		operation_info = service_info["filtered_operations"][0]
@@ -66,6 +66,77 @@ class DataCollector:
 		self.loggers = setup_loggers()
 
 		self.unique_fields = operation_info["unique_fields"]
+
+		self.params_list = {
+			"notice": {
+				'serviceKey': self.API_SERVICE_KEY,
+				'pageNo': 1,
+				'numOfRows': 100,
+				'inqryDiv': 1,
+				'type': 'json',
+				'inqryBgnDt': None,
+				'inqryEndDt': None
+			},
+			"bid": {
+				'serviceKey': self.API_SERVICE_KEY,
+				'pageNo': 1,
+				'numOfRows': 100,
+				'type': 'json',
+				'bidNtceNo': None,
+			},
+			"pubData": {
+				1: {
+					'serviceKey': self.API_SERVICE_KEY,
+					'pageNo': 1,
+					'numOfRows': 100,
+					'type': 'json',
+					'bsnsDivCd': None,
+					'bidNtceBgnDt': None,
+					'bidNtceEndDt': None,
+				},
+				2: {
+					'serviceKey': self.API_SERVICE_KEY,
+					'pageNo': 1,
+					'numOfRows': 100,
+					'type': 'json',
+					'bsnsDivCd': 3,
+					'opengBgnDt': None,
+					'opengEndDt': None,
+				},
+				3: {
+					'serviceKey': self.API_SERVICE_KEY,
+					'pageNo': 1,
+					'numOfRows': 100,
+					'type': 'json',
+					'cntrctCnclsBgnDate': None,
+					'cntrctCnclsEndDate': None,
+				}
+			}
+		}
+
+		self.date_field_map = {
+			"notice": ["inqryBgnDt", "inqryEndDt"],
+			"bid": [],  # 날짜필드 없음
+			"pubData": {
+				1: ["bidNtceBgnDt", "bidNtceEndDt"],
+				2: ["opengBgnDt", "opengEndDt"],
+				3: ["cntrctCnclsBgnDate", "cntrctCnclsEndDate"]
+			}
+		}
+
+	def set_date_params(self, api_type: str, params: dict, sub_type: int = None, date: str = ""):
+		start = date + "0000"
+		end = date + "2359"
+
+		if api_type == "pubData":
+			fields = self.date_field_map[api_type][sub_type]
+		else:
+			fields = self.date_field_map[api_type]
+
+		for i, key in enumerate(fields):
+			params[key] = start if i == 0 else end
+
+		return params
 
 	def record_txt(self, record_str: str, txt_file_name):
 		"""
@@ -83,19 +154,20 @@ class DataCollector:
 
 	# 공고 데이터 및 기업 데이터 수집에 사용
 	def collect_data_by_day(self, date: str) -> int | None | Any:
-		start_datetime = date + '0000'
-		end_datetime = date + '2359'
-		try:
-			params = {
-				'serviceKey': self.API_SERVICE_KEY,
-				'pageNo': 1,
-				'numOfRows': 100,
-				'inqryDiv': 1,
-				'type': 'json',
-				'inqryBgnDt': start_datetime,
-				'inqryEndDt': end_datetime
-			}
 
+		if self.service_name == "공공데이터개방표준서비스":
+			api_type = "pubData"
+			sub_type = self.operation_number
+			params = self.params_list[api_type][sub_type].copy()
+		else:
+			api_type = "notice"
+			sub_type = None
+			params = self.params_list[api_type].copy()
+
+		# 날짜 필드 자동 설정
+		params = self.set_date_params(api_type, params, sub_type=sub_type, date=date)
+
+		try:
 			response = self.session.get(self.url, params=params)
 
 			data = response.json()
@@ -173,6 +245,8 @@ class DataCollector:
 			raise
 
 	def collect_all_data_by_day(self, start_date: str, end_date: str):
+
+		# 유니크 인덱스 설정
 		unique_fields_query: list[tuple] = []  # Like [("bidNtceNo", 1), ("bidNtceOrd", 1)]
 		for uf in self.unique_fields:
 			unique_fields_query.append(tuple([uf, 1]))
@@ -211,13 +285,8 @@ class DataCollector:
 
 	def collect_bids_by_NtceNo(self, NtceNo: str):
 		try:
-			params = {
-				'serviceKey': self.API_SERVICE_KEY,
-				'pageNo': 1,
-				'numOfRows': 100,
-				'type': 'json',
-				'bidNtceNo': NtceNo,
-			}
+			params = self.params_list["bid"]
+			params["bidNtceNo"] = NtceNo
 
 			response = self.session.get(self.url, params=params)
 
@@ -361,3 +430,11 @@ class DataCollector:
 			self.loggers["application"].warning(f"⚠️ [{attempt}차 시도] {len(error_notices)}개의 날짜에서 오류 발생. 재시도 진행.")
 			pending_notices = error_notices  # 에러 발생한 날짜들만 다시 시도
 			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
+
+	def execute(self):
+		if self.service_name == "낙찰정보서비스" and self.operation_number == 13:
+			self.collect_all_bids_by_NtceNo()
+		else:
+			start_date = '2010-01-01'
+			end_date = '2025-03-04'
+			self.collect_all_data_by_day(start_date, end_date)

@@ -1,3 +1,4 @@
-from download_methods import *
+from data_collector import *
 
-get_data_in_full_date()
+data_collector = DataCollector()
+data_collector.execute()
