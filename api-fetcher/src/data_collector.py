@@ -97,7 +97,7 @@ class DataCollector:
 				2: {
 					'serviceKey': self.API_SERVICE_KEY,
 					'pageNo': 1,
-					'numOfRows': 100,
+					'numOfRows': 500,
 					'type': 'json',
 					'bsnsDivCd': 3,
 					'opengBgnDt': None,
