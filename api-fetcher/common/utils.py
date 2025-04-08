@@ -1,5 +1,4 @@
 import csv
-import os
 from datetime import datetime, timedelta
 
 from common.init_mongodb import *
@@ -48,12 +47,7 @@ def parse_csv_to_listdict(csv_file_path):
 
 
 def get_service_info(service_name: str, operation_number: int):
-	server, client = None, None
-
-	if os.getenv("DJANGO_ENV") == "local":
-		server, client = connect_mongodb_via_ssh()
-	else:
-		client = init_mongodb()
+	server, client = init_mongodb()
 
 	db = client.get_database("gfcon")
 

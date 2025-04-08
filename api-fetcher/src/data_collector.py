@@ -1,4 +1,6 @@
 import ssl
+import time
+from itertools import count
 from typing import Any
 
 import requests
@@ -26,16 +28,14 @@ class SSLContextAdapter(HTTPAdapter):
 
 
 class DataCollector:
-	def __init__(self):
+	def __init__(self, service_name: str | None = None, operation_number: str | int | None = None):
 
-		self.service_name, self.operation_number = input_handler()
+		self.service_name, self.operation_number = service_name, operation_number
 
-		self.server, self.client = None, None
+		if service_name is None and operation_number is None:
+			self.service_name, self.operation_number = input_handler()
 
-		if os.getenv("DJANGO_ENV") == "local":
-			self.server, self.client = connect_mongodb_via_ssh()
-		else:
-			self.client = init_mongodb()
+		self.server, self.client = init_mongodb()
 
 		self.API_BASE_DOMAIN = os.getenv("API_BASE_DOMAIN")
 		self.API_SERVICE_KEY = os.getenv("API_SERVICE_KEY")
@@ -152,8 +152,31 @@ class DataCollector:
 		with open(file_path, "a", encoding="utf-8") as f:
 			f.write(record_str + "\n")
 
+	def get_json_with_retry(self, url, params, retry_interval=10):
+		"""
+		requests.get으로부터 JSON 응답을 받을 때, JSONDecodeError 발생 시 재시도
+		"""
+		while True:
+			try:
+				response = self.session.get(url, params=params)
+				try:
+					return response.json()
+				except requests.exceptions.JSONDecodeError:
+					self.loggers["application"].error(
+						f'{self.collection_name} - JSONDecodeError 발생, {retry_interval}초 후 재시도 중...')
+					self.loggers["error"].error(
+						f'{self.collection_name} - JSONDecodeError 발생, {retry_interval}초 후 재시도 중...')
+					time.sleep(retry_interval)
+			except Exception as e:
+				self.loggers["application"].error(
+					f"{self.collection_name} - 요청 중 오류 발생: {str(e)}", exc_info=True)
+				self.loggers["error"].error(
+					f"{self.collection_name} - 요청 중 오류 발생: {str(e)}", exc_info=True)
+				raise
+
 	# 공고 데이터 및 기업 데이터 수집에 사용
-	def collect_data_by_day(self, date: str) -> int | None | Any:
+	def collect_data_by_day(self, date: str, collect_bids: bool = False,
+	                        bid_counter_by_date: dict | None = None) -> int | None | Any:
 
 		if self.service_name == "공공데이터개방표준서비스":
 			api_type = "pubData"
@@ -168,9 +191,7 @@ class DataCollector:
 		params = self.set_date_params(api_type, params, sub_type=sub_type, date=date)
 
 		try:
-			response = self.session.get(self.url, params=params)
-
-			data = response.json()
+			data = self.get_json_with_retry(self.url, params)
 
 			total_count = data['response']['body']['totalCount']
 			num_of_rows = params['numOfRows']
@@ -178,6 +199,21 @@ class DataCollector:
 
 			self.loggers["application"].day(f'{self.collection_name} - {date} - 전체 데이터 수: {total_count}')
 			self.loggers["day"].day(f'{self.collection_name} - {date} - 전체 데이터 수: {total_count}')
+
+			if collect_bids:
+				try:
+					db_date_count = bid_counter_by_date[f"{date[:4]}-{date[4:6]}-{date[6:]}"]
+				except KeyError:
+					db_date_count = 0
+
+				# ±10%까지 허용하도록...
+				if abs(db_date_count - total_count) <= total_count * 0.1:
+					self.loggers["application"].verify(
+						f'{date} - 데이터 개수 차이 10% 내외 - API:{total_count} | DB:{db_date_count} PASSED')
+					return None
+				else:
+					self.loggers["application"].verify(
+						f'{date} - 데이터 개수 불일치 - API:{total_count} | DB:{db_date_count} - CONTINUE')
 
 			total_success = 0
 			total_insert = 0
@@ -189,8 +225,7 @@ class DataCollector:
 				page_update_count = 0
 
 				params['pageNo'] = page
-				response = self.session.get(self.url, params=params)
-				data = response.json()
+				data = self.get_json_with_retry(self.url, params)
 
 				if 'response' in data:
 					items = data['response']['body']['items']
@@ -231,7 +266,7 @@ class DataCollector:
 					total_update += page_update_count
 					total_success += success_count
 					self.loggers['application'].fetch(
-						f"{self.collection_name} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
+						f"{date} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
 
 			self.loggers["application"].day(
 				f"{self.collection_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
@@ -245,6 +280,8 @@ class DataCollector:
 			raise
 
 	def collect_all_data_by_day(self, start_date: str, end_date: str):
+		# 투찰 데이터 수집인지?
+		collect_bids: bool = (self.collection_name == "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보")
 
 		# 유니크 인덱스 설정
 		unique_fields_query: list[tuple] = []  # Like [("bidNtceNo", 1), ("bidNtceOrd", 1)]
@@ -258,6 +295,8 @@ class DataCollector:
 
 		self.loggers["application"].info(f"{start_date} ~ {end_date} 내 데이터를 모두 가져옵니다.")
 
+		bid_counter_by_date = self.count_by_openg_date() if collect_bids else None
+
 		pending_dates = date_list
 
 		attempt = 1
@@ -267,7 +306,7 @@ class DataCollector:
 			error_dates = []
 			for date in pending_dates:
 				try:
-					result = self.collect_data_by_day(date)
+					result = self.collect_data_by_day(date, collect_bids, bid_counter_by_date=bid_counter_by_date)
 					self.record_txt(date, "fetched_date.txt")
 				except Exception as e:
 					self.loggers["error"].error(f"{self.collection_name} - {date} - 수집 실패: {str(e)}")
@@ -431,10 +470,26 @@ class DataCollector:
 			pending_notices = error_notices  # 에러 발생한 날짜들만 다시 시도
 			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
 
+	def count_by_openg_date(self) -> dict:
+		pipeline = [
+			{
+				"$group": {
+					"_id": "$opengDate",
+					"count": {"$sum": 1}
+				}
+			},
+			{
+				"$sort": {"_id": 1}
+			}
+		]
+
+		result = list(self.collection.aggregate(pipeline))
+		return {item['_id']: item['count'] for item in result}
+
 	def execute(self):
 		if self.service_name == "낙찰정보서비스" and self.operation_number == 13:
 			self.collect_all_bids_by_NtceNo()
 		else:
-			start_date = '2010-01-01'
-			end_date = '2025-03-04'
+			start_date = '2010-01-04'
+			end_date = '2010-01-04'
 			self.collect_all_data_by_day(start_date, end_date)

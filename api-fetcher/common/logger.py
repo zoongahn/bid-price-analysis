@@ -4,10 +4,12 @@ import colorlog
 from datetime import datetime
 
 # ✅ 커스텀 로그 레벨 추가
+VERIFY_LEVEL = 22
 FETCH_LEVEL = 23
 DAY_LEVEL = 24
 YEAR_LEVEL = 25
 
+logging.addLevelName(VERIFY_LEVEL, "VERIFY")
 logging.addLevelName(FETCH_LEVEL, "FETCH")
 logging.addLevelName(DAY_LEVEL, "DAY")
 logging.addLevelName(YEAR_LEVEL, "YEAR")
@@ -15,6 +17,10 @@ logging.addLevelName(YEAR_LEVEL, "YEAR")
 
 # ✅ Logger 클래스 확장
 class CustomLogger(logging.getLoggerClass()):
+	def verify(self, message, *args, **kwargs):
+		if self.isEnabledFor(VERIFY_LEVEL):
+			self._log(VERIFY_LEVEL, message, args, **kwargs)
+
 	def fetch(self, message, *args, **kwargs):
 		if self.isEnabledFor(FETCH_LEVEL):
 			self._log(FETCH_LEVEL, message, args, **kwargs)
@@ -81,6 +87,7 @@ def setup_loggers(log_filename="application.log", log_level=logging.INFO):
 				"%(log_color)s[%(levelname)s] %(asctime)s - %(message)s",
 				datefmt=date_format,
 				log_colors={
+					"VERIFY": "purple",
 					"FETCH": "cyan",
 					"DAY": "green",
 					"YEAR": "yellow",

@@ -3,7 +3,7 @@ import csv
 from common.init_mongodb import *
 
 # MongoDB SSH 터널 연결
-server, client = connect_mongodb_via_ssh()
+server, client = init_mongodb()
 db = client.get_database("gfcon_raw")
 collection_notices = db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")
 collection_bids = db.get_collection("낙찰정보서비스.개찰결과개찰완료목록조회")

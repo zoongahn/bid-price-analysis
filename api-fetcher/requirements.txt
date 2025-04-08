@@ -3,13 +3,15 @@ certifi==2025.1.31
 cffi==1.17.1
 charset-normalizer==3.4.1
 colorlog==6.9.0
--e git+https://github.com/zoongahn/jungiNet.git@511223b57a28304dfae8afbdb57e3d331f729bc6#egg=common&subdirectory=api-fetcher
+-e git+https://github.com/zoongahn/jungiNet.git@f290188fc9216e636ce90f6f8f07031af02515b6#egg=common&subdirectory=api-fetcher
 cryptography==44.0.1
 dnspython==2.7.0
 idna==3.10
 iniconfig==2.0.0
 lxml==5.3.1
+numpy==2.2.4
 packaging==24.2
+pandas==2.2.3
 paramiko==3.5.1
 pillow==11.1.0
 pluggy==1.5.0
@@ -18,10 +20,14 @@ pymongo==4.11.1
 PyNaCl==1.5.0
 pyOpenSSL==25.0.0
 pytest==8.3.4
+python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
+pytz==2025.2
 requests @ git+https://github.com/psf/requests.git@0e322af87745eff34caffe4df68456ebc20d9068
 setuptools==75.8.0
+six==1.17.0
 sshtunnel==0.4.0
 typing_extensions==4.12.2
+tzdata==2025.2
 urllib3==2.3.0
 wheel==0.45.1

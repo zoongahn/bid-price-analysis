@@ -39,14 +39,8 @@ def upload_api_list(csv_file_path: str, collection_name: str = "api_list"):
 		}
 		docs.append(doc)
 
-	DJANGO_ENV = os.getenv("DJANGO_ENV")
-	server, db = None, None
-
-	if DJANGO_ENV == "local":
-		server, db = connect_mongodb_via_ssh()
-	else:
-		db = init_mongodb()
-
+	server, client = init_mongodb()
+	db = client.get_database("gfcon")
 	collection = db[collection_name]
 
 	if docs:
@@ -69,13 +63,9 @@ def add_response_fields_to_operations(csv_file_path, collection_name: str = "api
 	field_sample = "샘플데이터"
 	field_desc = "항목설명"
 
-	DJANGO_ENV = os.getenv("DJANGO_ENV")
-	server, db = None, None
+	server, client = init_mongodb()
 
-	if DJANGO_ENV == "local":
-		server, db = connect_mongodb_via_ssh()
-	else:
-		db = init_mongodb()
+	db = client["gfcon"]
 
 	collection = db[collection_name]
 

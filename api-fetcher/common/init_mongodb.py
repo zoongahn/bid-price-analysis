@@ -7,13 +7,12 @@ from sshtunnel import SSHTunnelForwarder
 load_dotenv()
 
 
-def init_mongodb():
+def connect_mongodb_local():
 	MONGODB_HOST = os.getenv("MONGODB_HOST")
 	MONGODB_PORT = int(os.getenv("MONGODB_PORT"))
 	MONGODB_USER = quote_plus(os.getenv("MONGODB_USER"))
 	MONGODB_PASSWORD = quote_plus(os.getenv("MONGODB_PASSWORD"))
 	MONGODB_AUTH_SOURCE = os.getenv("MONGODB_AUTH_SOURCE")
-
 
 	mongodb_url = f"mongodb://{MONGODB_USER}:{MONGODB_PASSWORD}@{MONGODB_HOST}:{MONGODB_PORT}/?authSource={MONGODB_AUTH_SOURCE}"
 
@@ -24,7 +23,6 @@ def init_mongodb():
 
 def connect_mongodb_via_ssh():
 	""" SSH 터널을 생성하여 MongoDB에 연결 """
-	global server
 
 	SSH_HOST = os.getenv("SSH_HOST")
 	SSH_PORT = int(os.getenv("SSH_PORT"))
@@ -56,3 +54,16 @@ def connect_mongodb_via_ssh():
 	mongo_client = MongoClient(mongodb_url)
 
 	return server, mongo_client
+
+
+def init_mongodb():
+	server, client = None, None
+
+	env = os.getenv("DJANGO_ENV")
+
+	if env == "local":
+		server, client = connect_mongodb_via_ssh()
+	elif env == "production":
+		client = connect_mongodb_local()
+
+	return server, client
