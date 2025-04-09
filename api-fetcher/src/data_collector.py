@@ -152,21 +152,25 @@ class DataCollector:
 		with open(file_path, "a", encoding="utf-8") as f:
 			f.write(record_str + "\n")
 
-	def get_json_with_retry(self, url, params, retry_interval=10):
-		"""
-		requests.get으로부터 JSON 응답을 받을 때, JSONDecodeError 발생 시 재시도
-		"""
+	def get_json_with_retry(self, url, params, date, retry_interval=10):
+		from requests.exceptions import JSONDecodeError, ConnectionError
+
+		def error_handler(e: str, interval: int):
+			self.loggers["application"].error(
+				f'{date} - {e} 발생, {interval}초 후 재시도 중...')
+			self.loggers["error"].error(
+				f'{date} - {e} 발생, {interval}초 후 재시도 중...')
+			time.sleep(interval)
+
 		while True:
 			try:
 				response = self.session.get(url, params=params)
 				try:
 					return response.json()
-				except requests.exceptions.JSONDecodeError:
-					self.loggers["application"].error(
-						f'{self.collection_name} - JSONDecodeError 발생, {retry_interval}초 후 재시도 중...')
-					self.loggers["error"].error(
-						f'{self.collection_name} - JSONDecodeError 발생, {retry_interval}초 후 재시도 중...')
-					time.sleep(retry_interval)
+				except JSONDecodeError:
+					error_handler("JSONDecodeError", interval=retry_interval)
+				except ConnectionError:
+					error_handler("ConnectionError", interval=retry_interval)
 			except Exception as e:
 				self.loggers["application"].error(
 					f"{self.collection_name} - 요청 중 오류 발생: {str(e)}", exc_info=True)
@@ -207,9 +211,9 @@ class DataCollector:
 					db_date_count = 0
 
 				# ±10%까지 허용하도록...
-				if abs(db_date_count - total_count) <= total_count * 0.1:
+				if abs(db_date_count - total_count) <= total_count * 0.05:
 					self.loggers["application"].verify(
-						f'{date} - 데이터 개수 차이 10% 내외 - API:{total_count} | DB:{db_date_count} PASSED')
+						f'{date} - 데이터 개수 차이 5% 내외 - API:{total_count} | DB:{db_date_count} PASSED')
 					return None
 				else:
 					self.loggers["application"].verify(
@@ -225,7 +229,7 @@ class DataCollector:
 				page_update_count = 0
 
 				params['pageNo'] = page
-				data = self.get_json_with_retry(self.url, params)
+				data = self.get_json_with_retry(self.url, params, date)
 
 				if 'response' in data:
 					items = data['response']['body']['items']
@@ -273,6 +277,7 @@ class DataCollector:
 			self.loggers["day"].day(
 				f"{self.collection_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
 			return total_success
+		
 
 		except Exception as e:
 			self.loggers["application"].error(f"{self.collection_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)

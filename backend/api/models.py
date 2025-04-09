@@ -1,6 +1,5 @@
 from django.db import models
 
-
 class Notice(models.Model):
 	공고번호 = models.CharField(max_length=50, unique=True)
 	입찰년도 = models.IntegerField()
@@ -22,7 +21,6 @@ class Notice(models.Model):
 	def __str__(self):
 		return f"{self.공고번호} - {self.공고제목}"
 
-
 class Company(models.Model):
 	사업자등록번호 = models.CharField(max_length=20, unique=True)
 	업체명 = models.CharField(max_length=255, unique=True)
@@ -33,7 +31,6 @@ class Company(models.Model):
 
 	def __str__(self):
 		return self.업체명
-
 
 class Bid(models.Model):
 	notice = models.ForeignKey(Notice, on_delete=models.CASCADE)

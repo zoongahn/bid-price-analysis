@@ -100,66 +100,105 @@ export const numberFilterParams = {
 }
 
 export const NOTICE_COLUMNS = [
-	{headerName: "공고번호", field: "공고번호", width: 150, sort: "desc", filterParams: textFilterParams},
 	{
-		headerName: "입찰년도",
-		field: "입찰년도",
-		width: 50,
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
-	},
-	{headerName: "공고제목", field: "공고제목", width: 500, filterParams: textFilterParams},
-	{headerName: "발주처", field: "발주처", width: 150, filterParams: textFilterParams},
-	{headerName: "지역제한", field: "지역제한", width: 100, filterParams: textFilterParams},
-	{
-		headerName: "기초금액",
-		field: "기초금액",
-		width: 120,
-		valueFormatter: (params) => (params.value ? params.value.toLocaleString() : ""),
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
+		id: "rowNumber",
+		header: "#",
+		cell: ({row}) => row.index + 1,
+		size: 50,
 	},
 	{
-		headerName: "예정가격",
-		field: "예정가격",
-		width: 120,
-		valueFormatter: (params) => (params.value ? params.value.toLocaleString() : ""),
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
-	},
-	{headerName: "예가범위", field: "예가범위", width: 120, filterParams: textFilterParams},
-	{
-		headerName: "A값",
-		field: "A값",
-		width: 100,
-		valueFormatter: (params) => (params.value ? params.value.toLocaleString() : ""),
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
+		id: "공고번호",
+		accessorKey: "공고번호",
+		header: "공고번호",
+		size: 150,
 	},
 	{
-		headerName: "투찰률",
-		field: "투찰률",
-		width: 100,
-		valueFormatter: (params) => (params.value ? `${params.value.toFixed(3)}%` : ""),
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
+		id: "입찰년도",
+		accessorKey: "입찰년도",
+		header: "입찰년도",
+		size: 70,
 	},
 	{
-		headerName: "참여업체수",
-		field: "참여업체수",
-		width: 100,
-		valueFormatter: (params) => (params.value ? params.value.toLocaleString() : ""),
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
+		id: "공고제목",
+		accessorKey: "공고제목",
+		header: "공고제목",
+		size: 200,
 	},
-	{headerName: "공고구분표시", field: "공고구분표시", width: 100, filterParams: textFilterParams},
 	{
-		headerName: "정답사정률",
-		field: "정답사정률",
-		width: 100,
-		valueFormatter: (params) => (params.value ? params.value.toFixed(5) : ""),
-		filter: "agNumberColumnFilter",
-		filterParams: numberFilterParams,
+		id: "발주처",
+		accessorKey: "발주처",
+		header: "발주처",
+		size: 150,
+		cell: info => (
+			<span className="whitespace-nowrap">{info.getValue()}</span>
+		),
+	},
+	{
+		id: "지역제한",
+		accessorKey: "지역제한",
+		header: "지역제한",
+		size: 100,
+	},
+	{
+		id: "기초금액",
+		accessorKey: "기초금액",
+		header: "기초금액",
+		size: 120,
+		cell: ({getValue}) =>
+			<span className="whitespace-nowrap">{getValue() ? Number(getValue()).toLocaleString() : ""}</span>,
+	},
+	{
+		id: "예정가격",
+		accessorKey: "예정가격",
+		header: "예정가격",
+		size: 120,
+		cell: ({getValue}) =>
+			getValue() ? Number(getValue()).toLocaleString() : "",
+	},
+	{
+		id: "예가범위",
+		accessorKey: "예가범위",
+		header: "예가범위",
+		size: 100,
+		cell: info => (
+			<span className="whitespace-nowrap">{info.getValue()}</span>
+		),
+	},
+	{
+		id: "A값",
+		accessorKey: "A값",
+		header: "A값",
+		size: 120,
+		cell: ({getValue}) =>
+			getValue() ? Number(getValue()).toLocaleString() : "",
+	},
+	{
+		id: "투찰률",
+		accessorKey: "투찰률",
+		header: "투찰률",
+		size: 80,
+		cell: ({getValue}) =>
+			getValue() ? `${Number(getValue()).toFixed(3)}%` : "",
+	},
+	{
+		id: "참여업체수",
+		accessorKey: "참여업체수",
+		header: "참여업체수",
+		size: 80,
+		cell: ({getValue}) =>
+			getValue() ? Number(getValue()).toLocaleString() : "",
+	},
+	{
+		id: "공고구분표시",
+		accessorKey: "공고구분표시",
+		header: "공고구분표시",
+	},
+	{
+		id: "정답사정률",
+		accessorKey: "정답사정률",
+		header: "정답사정률",
+		cell: ({getValue}) =>
+			getValue() ? Number(getValue()).toFixed(5) : "",
 	},
 ]
 

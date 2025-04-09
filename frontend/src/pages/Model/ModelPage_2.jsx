@@ -135,39 +135,15 @@ const modelPage = () => {
 			<div>
 				<div className="relative flex items-center justify-center my-4">
 					<div
-						className="absolute w-full h-[3px] bg-gradient-to-r from-gray-500 via-transparent to-gray-500"></div>
+						className="absolute block w-full h-[3px] bg-gradient-to-r from-gray-500 via-transparent to-gray-500">
+					</div>
+
 					<button type="submit"
 							className="bg-white px-4 py-2 rounded-full shadow-md hover:bg-gray-100 transition duration-200 z-10 cursor-pointer"
 							onClick={handleSubmitButton}
 					><IoIosArrowDown
 						className="text-5xl"/>
 					</button>
-				</div>
-			</div>
-			<nav className="flex space-x-4 border-b border-gray-300 mb-5">
-				{chartTabs.map((tab) => (
-					<button
-						key={tab.name}
-						className={`px-4 py-2 rounded-t-lg text-lg font-medium transition-all cursor-pointer ${
-							selectedTab === tab.name
-								? "bg-sky-100 border-t border-l border-r border-gray-300"
-								: "bg-gray-100 hover:bg-gray-200"
-						}`}
-						onClick={() => setSelectedTab(tab.name)}
-					>
-						{tab.name}
-					</button>
-				))}
-			</nav>
-			<div className="">
-
-				{/* ✅ 선택한 탭에 따라 그래프 변경 */}
-				<div className="py-4 border border-gray-300 rounded-lg my-4">
-					{chartTabs.find((tab) => tab.name === selectedTab)?.component}
-				</div>
-
-				<div className="w-[30%]">
-					<ModelIndices mse={0.023} mae={0.012} rmse={0.045} r2={0.89}/>
 				</div>
 			</div>
 		</div>

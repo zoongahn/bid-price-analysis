@@ -1,6 +1,7 @@
 import MyAgGridTable from "./MyAgGridTable"
 import {useCallback, useRef} from "react"
 import ServerAgGridTable from "./ServerAgGridTable.jsx"
+import MyReactTable from "./MyReactTable.jsx"
 
 // CSV 내보내기 함수
 
@@ -27,9 +28,9 @@ export default function TableContainer({columns, tableData, server = false}) {
 				</button>
 			</div>
 			{server ? (
-				<ServerAgGridTable columns={columns} tableData={tableData} />
+				<ServerAgGridTable columns={columns} tableData={tableData}/>
 			) : (
-				<MyAgGridTable columns={columns} tableData={tableData} />
+				<MyReactTable columns={columns} tableData={tableData}/>
 			)}
 		</div>
 	)

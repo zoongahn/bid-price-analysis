@@ -1,17 +1,35 @@
 @import "tailwindcss";
+/*@import "tailwind-scrollbar-hide";*/
+
 
 kbd {
-	display: inline-block;
-	padding: 4px 10px;
-	font-size: 14px;
-	font-weight: bold;
-	color: #fff;
-	background: #3a3a3a;
-	border-radius: 6px;
-	border: 1px solid #666;
-	box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
-	font-family: "Inter", sans-serif;
-	vertical-align: middle;
-	line-height: 1.2;
-	margin-bottom: 3px;
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    background: #3a3a3a;
+    border-radius: 6px;
+    border: 1px solid #666;
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+    font-family: "Inter", sans-serif;
+    vertical-align: middle;
+    line-height: 1.2;
+    margin-bottom: 3px;
+}
+
+button {
+    cursor: pointer;
+}
+
+.resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 10;
+    
 }
