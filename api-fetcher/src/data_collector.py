@@ -210,8 +210,9 @@ class DataCollector:
 				except KeyError:
 					db_date_count = 0
 
-				# ±10%까지 허용하도록...
-				if abs(db_date_count - total_count) <= total_count * 0.05:
+				# ±5%까지 허용하도록...
+				margin_rate = 0.05
+				if abs(db_date_count - total_count) <= total_count * margin_rate:
 					self.loggers["application"].verify(
 						f'{date} - 데이터 개수 차이 5% 내외 - API:{total_count} | DB:{db_date_count} PASSED')
 					return None
@@ -277,7 +278,7 @@ class DataCollector:
 			self.loggers["day"].day(
 				f"{self.collection_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
 			return total_success
-		
+
 
 		except Exception as e:
 			self.loggers["application"].error(f"{self.collection_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)
