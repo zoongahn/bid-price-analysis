@@ -195,7 +195,7 @@ class DataCollector:
 		params = self.set_date_params(api_type, params, sub_type=sub_type, date=date)
 
 		try:
-			data = self.get_json_with_retry(self.url, params)
+			data = self.get_json_with_retry(self.url, params, date, retry_interval=10)
 
 			total_count = data['response']['body']['totalCount']
 			num_of_rows = params['numOfRows']
@@ -230,7 +230,7 @@ class DataCollector:
 				page_update_count = 0
 
 				params['pageNo'] = page
-				data = self.get_json_with_retry(self.url, params, date)
+				data = self.get_json_with_retry(self.url, params, date, retry_interval=10)
 
 				if 'response' in data:
 					items = data['response']['body']['items']
