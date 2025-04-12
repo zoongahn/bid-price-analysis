@@ -500,6 +500,11 @@ class DataCollector:
 		if self.service_name == "낙찰정보서비스" and self.operation_number == 13:
 			self.collect_all_bids_by_NtceNo()
 		else:
-			start_date = '2010-01-04'
-			end_date = '2010-01-04'
+			start_date = '2012-06-19'
+			end_date = '2024-12-31'
 			self.collect_all_data_by_day(start_date, end_date)
+
+	def execute_by_year(self, year):
+		start_date = f'{year}-01-01'
+		end_date = f'{year}-12-31'
+		self.collect_all_data_by_day(start_date, end_date)
