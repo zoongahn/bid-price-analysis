@@ -164,13 +164,17 @@ class DataCollector:
 
 		while True:
 			try:
-				response = self.session.get(url, params=params)
+				try:
+					response = self.session.get(url, params=params)
+				except ConnectionError:
+					error_handler("ConnectionError", interval=retry_interval)
+					continue
+
 				try:
 					return response.json()
 				except JSONDecodeError:
 					error_handler("JSONDecodeError", interval=retry_interval)
-				except ConnectionError:
-					error_handler("ConnectionError", interval=retry_interval)
+
 			except Exception as e:
 				self.loggers["application"].error(
 					f"{self.collection_name} - 요청 중 오류 발생: {str(e)}", exc_info=True)
