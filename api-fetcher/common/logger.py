@@ -38,7 +38,7 @@ logging.setLoggerClass(CustomLogger)
 
 
 # 로깅
-def setup_loggers():
+def setup_loggers(year: str = None):
 	# 현재 실행 중인 파일(src/main.py)의 위치
 	current_dir = os.path.dirname(os.path.abspath(__file__))  # src/
 
@@ -51,17 +51,23 @@ def setup_loggers():
 
 	# 현재시각을 기준으로 log/ 에 디렉토리생성
 	timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-	time_dir = os.path.join(logs_dir, timestamp)
+
+	if year:
+		dir_name = f"{timestamp}_YEAR{year}"
+	else:
+		dir_name = timestamp
+
+	time_dir = os.path.join(logs_dir, dir_name)
 	os.makedirs(time_dir, exist_ok=True)
 
 	# 기존 루트 로거 핸들러 제거 (이중 출력 방지)
 	logging.getLogger().handlers.clear()
 
 	log_files = {
-		"application": os.path.join(time_dir, f"application_{timestamp}.log"),
-		"error": os.path.join(time_dir, f"error_{timestamp}.log"),
-		"day": os.path.join(time_dir, f"day_{timestamp}.log"),
-		"year": os.path.join(time_dir, f"year_{timestamp}.log"),
+		"application": os.path.join(time_dir, f"application_{dir_name}.log"),
+		"error": os.path.join(time_dir, f"error_{dir_name}.log"),
+		"day": os.path.join(time_dir, f"day_{dir_name}.log"),
+		"year": os.path.join(time_dir, f"year_{dir_name}.log"),
 	}
 
 	# 기본 로그 포맷 설정

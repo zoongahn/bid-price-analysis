@@ -7,11 +7,5 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
-	collector = DataCollector("공공데이터개방표준서비스", 2)
-
-	if args.year:
-		# 년도별 수집
-		collector.execute_by_year(args.year)
-	else:
-		# 전체 수집
-		collector.execute()
+	collector = DataCollector("공공데이터개방표준서비스", 2, args.year)
+	collector.execute()

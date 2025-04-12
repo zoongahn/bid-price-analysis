@@ -28,7 +28,11 @@ class SSLContextAdapter(HTTPAdapter):
 
 
 class DataCollector:
-	def __init__(self, service_name: str | None = None, operation_number: str | int | None = None):
+	def __init__(self, service_name: str | None = None, operation_number: str | int | None = None,
+	             year: str | int | None = None):
+
+		# execute_by_year에 대응됨. year=None이면 전체수집.
+		self.executed_year = year
 
 		self.service_name, self.operation_number = service_name, operation_number
 
@@ -63,7 +67,7 @@ class DataCollector:
 
 		self.collection = self.db[self.collection_name]
 
-		self.loggers = setup_loggers()
+		self.loggers = setup_loggers(year=self.executed_year)
 
 		self.unique_fields = operation_info["unique_fields"]
 
@@ -502,18 +506,20 @@ class DataCollector:
 		]
 
 		result = list(self.collection.aggregate(pipeline))
-		print(result)
 		return {item['_id']: item['count'] for item in result}
 
 	def execute(self):
-		if self.service_name == "낙찰정보서비스" and self.operation_number == 13:
-			self.collect_all_bids_by_NtceNo()
-		else:
-			start_date = '2012-06-19'
-			end_date = '2024-12-31'
+		# 특정년도 수집
+		if self.executed_year:
+			start_date = f'{self.executed_year}-01-01'
+			end_date = f'{self.executed_year}-12-31'
 			self.collect_all_data_by_day(start_date, end_date)
 
-	def execute_by_year(self, year):
-		start_date = f'{year}-01-01'
-		end_date = f'{year}-12-31'
-		self.collect_all_data_by_day(start_date, end_date)
+		# 전체수집
+		else:
+			if self.service_name == "낙찰정보서비스" and self.operation_number == 13:
+				self.collect_all_bids_by_NtceNo()
+			else:
+				start_date = '2012-06-19'
+				end_date = '2024-12-31'
+				self.collect_all_data_by_day(start_date, end_date)
