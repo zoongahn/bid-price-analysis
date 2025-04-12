@@ -305,7 +305,7 @@ class DataCollector:
 
 		self.loggers["application"].info(f"{start_date} ~ {end_date} 내 데이터를 모두 가져옵니다.")
 
-		bid_counter_by_date = self.count_by_openg_date() if collect_bids else None
+		bid_counter_by_date = self.count_by_openg_date(start_date, end_date) if collect_bids else None
 
 		pending_dates = date_list
 
@@ -480,8 +480,16 @@ class DataCollector:
 			pending_notices = error_notices  # 에러 발생한 날짜들만 다시 시도
 			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
 
-	def count_by_openg_date(self) -> dict:
+	def count_by_openg_date(self, start_date: str, end_date: str) -> dict:
 		pipeline = [
+			{
+				"$match": {
+					"opengDate": {
+						"$gte": start_date,
+						"$lte": end_date
+					}
+				}
+			},
 			{
 				"$group": {
 					"_id": "$opengDate",
@@ -494,6 +502,7 @@ class DataCollector:
 		]
 
 		result = list(self.collection.aggregate(pipeline))
+		print(result)
 		return {item['_id']: item['count'] for item in result}
 
 	def execute(self):

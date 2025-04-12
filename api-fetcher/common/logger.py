@@ -38,7 +38,7 @@ logging.setLoggerClass(CustomLogger)
 
 
 # 로깅
-def setup_loggers(log_filename="application.log", log_level=logging.INFO):
+def setup_loggers():
 	# 현재 실행 중인 파일(src/main.py)의 위치
 	current_dir = os.path.dirname(os.path.abspath(__file__))  # src/
 
