@@ -4,3 +4,4 @@ fetch_record/
 date_record/
 logs/
 src/test/
+!scripts/*.sh
