@@ -61,9 +61,9 @@ def init_mongodb():
 
 	env = os.getenv("DJANGO_ENV")
 
-	if env == "local":
+	if env == "remote":
 		server, client = connect_mongodb_via_ssh()
-	elif env == "production":
+	elif env == "local":
 		client = connect_mongodb_local()
 
 	return server, client
