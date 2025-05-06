@@ -3,5 +3,5 @@
 fetch_record/
 date_record/
 logs/
-src/test/
+fetch-data/test/
 !scripts/*.sh
