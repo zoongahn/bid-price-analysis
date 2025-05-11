@@ -2,7 +2,7 @@ import os
 import shutil
 
 # 현재 스크립트 파일이 위치한 디렉토리를 프로젝트 루트로 간주
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 삭제할 디렉토리 목록
 directories = ['logs', 'fetch_record']

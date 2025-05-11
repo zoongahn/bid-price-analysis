@@ -1,6 +1,32 @@
+# sync_notice.py
 from typing import Any
 
-from .type_converter import *
+from db_connect import get_mongo_client
+from db_connect.get_psql_conn import get_psql_conn
+from datetime import datetime
+from decimal import Decimal
+import psycopg2.extras
+
+
+def to_int(v):
+	try:
+		return int(v) if v not in [None, "", "-"] else None
+	except:
+		return None
+
+
+def to_decimal(v):
+	try:
+		return Decimal(v) if v not in [None, "", "-"] else None
+	except:
+		return None
+
+
+def to_datetime(v):
+	try:
+		return datetime.strptime(v, "%Y-%m-%d %H:%M:%S") if v else None
+	except:
+		return None
 
 
 def transform_document(doc: dict[str, Any]) -> dict[str, Any]:
@@ -171,5 +197,27 @@ def transform_document(doc: dict[str, Any]) -> dict[str, Any]:
 		"qltyMngcst": to_int(doc.get("qltyMngcst")),
 		"qltyMngcstAObjYn": doc.get("qltyMngcstAObjYn", "")[:1],
 	}
-
 	return transformed
+
+
+def sync_notice_data():
+	with get_mongo_client() as mongo_client:
+		mongo_db = mongo_client.get_database("gfcon_raw")
+		mongo_default = mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사조회")
+		mongo_bssAmt = mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사기초금액조회")
+
+		with get_psql_conn() as pg_conn:
+			with pg_conn.cursor() as cur:
+				total_doc_count = mongo_default.count_documents({})
+
+
+def test():
+	with get_mongo_client() as mongo_client:
+		mongo_db = mongo_client.get_database("gfcon_raw")
+		mongo_default = mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사조회")
+
+		count = mongo_default.count_documents({})
+		print(count)
+
+
+test()

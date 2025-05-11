@@ -1,7 +1,8 @@
 import ssl
 import time
+import math
 from itertools import count
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -27,185 +28,268 @@ class SSLContextAdapter(HTTPAdapter):
 		)
 
 
-class DataCollector:
-	def __init__(self, service_name: str | None = None, operation_number: str | int | None = None,
-	             year: str | int | None = None):
+class ApiClient:
+	"""Handles all HTTP communication with retry logic."""
 
-		# execute_by_year에 대응됨. year=None이면 전체수집.
-		self.executed_year = year
+	def __init__(self, base_url: str):
+		self.base_url = base_url
+		self.logger = setup_loggers()
+		self.session = self._create_ssl_session()
 
-		self.service_name, self.operation_number = service_name, operation_number
+	# ---------------------------------------------------------------------
+	# Public helpers
+	# ---------------------------------------------------------------------
+	def get(self, endpoint: str, params: Dict[str, Any], retry_interval: int = 10) -> Dict[str, Any]:
+		"""GET with automatic JSON decode & retry."""
+		full_url = f"{self.base_url}/{endpoint}"
+		while True:
+			try:
+				response = self.session.get(full_url, params=params, timeout=30)
+				response.raise_for_status()
+				return response.json()
+			except (requests.exceptions.ConnectionError, requests.exceptions.JSONDecodeError) as exc:
+				self.logger["application"].error(
+					f"{exc.__class__.__name__} while requesting {full_url} – retry in {retry_interval}s"
+				)
+				time.sleep(retry_interval)
+				continue
+			except Exception as exc:  # pragma: no cover
+				self.logger["error"].error("Unhandled exception in ApiClient", exc_info=True)
+				raise
 
-		if service_name is None and operation_number is None:
-			self.service_name, self.operation_number = input_handler()
-
-		self.server, self.client = init_mongodb()
-
-		self.API_BASE_DOMAIN = os.getenv("API_BASE_DOMAIN")
-		self.API_SERVICE_KEY = os.getenv("API_SERVICE_KEY")
-
+	# ------------------------------------------------------------------
+	# Private helpers
+	# ------------------------------------------------------------------
+	@staticmethod
+	def _create_ssl_session() -> requests.Session:
 		# 1) SSLContext 생성
 		ssl_ctx = ssl.create_default_context()
 		# 2) TLS 1.3 비활성 → TLS 1.2 이하
 		ssl_ctx.maximum_version = ssl.TLSVersion.TLSv1_2
 		# 3) "보안 레벨"을 1로 낮추어, 구버전 Cipher까지 허용
 		ssl_ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+		session = requests.Session()
+		session.mount("https://", SSLContextAdapter(ssl_context=ssl_ctx))
+		return session
 
-		self.session = requests.Session()
-		self.session.mount("https://", SSLContextAdapter(ssl_context=ssl_ctx))
 
-		service_info = get_service_info(service_name=self.service_name, operation_number=self.operation_number)
+# ---------------------------------------------------------------------------
+# Persistence layer
+# ---------------------------------------------------------------------------
+class MongoWriter:
+	"""Wraps MongoDB collection with safe insert/update (upsert) behaviour."""
 
-		service_endpoint = service_info["service_endpoint"]
-		operation_info = service_info["filtered_operations"][0]
-		operation_endpoint = operation_info["오퍼레이션명(영문)"]
-		self.collection_name = operation_info["raw_data_collection_name"]
+	def __init__(self, db, collection_name: str, unique_fields: List[str]):
+		self.collection = db[collection_name]
+		self.unique_fields = unique_fields
+		self._ensure_index()
 
-		self.url = f"{self.API_BASE_DOMAIN}/{service_endpoint}/{operation_endpoint}"
+	def upsert(self, item: Dict[str, Any]) -> str:
+		"""
+			"insert"  -> 새 문서가 삽입됨
+			"update"  -> 중복으로 인해 수정 수행
+			"error"   -> 다른 예외가 발생 (로그는 여기서 남기고, 예외는 상위에서 처리)
+		"""
+		try:
+			# 1) insert 시도
+			self.collection.insert_one(item)
+			return "insert"
 
-		self.db = self.client.get_database("gfcon_raw")
+		except DuplicateKeyError:
+			# 2) 중복이면 update 수행
+			item.pop("_id", None)  # _id 필드 제거 (원본 로직과 동일)
 
-		self.collection = self.db[self.collection_name]
+			update_query = {field: item[field] for field in self.unique_fields}
+			self.collection.update_one(update_query, {"$set": item})
+			return "update"
 
-		self.loggers = setup_loggers(year=self.executed_year)
+		except Exception as exc:
+			# 3) 기타 에러는 내부 로깅 후 'error' 반환
+			from common.logger import setup_loggers
 
-		self.unique_fields = operation_info["unique_fields"]
+			loggers = setup_loggers()
+			loggers["application"].error(f"Mongo upsert 실패: {exc}", exc_info=True)
+			loggers["error"].error(f"Mongo upsert 실패: {exc}", exc_info=True)
+			return "error"
 
-		numofRows = 500
+	def _ensure_index(self) -> None:
+		index_spec = [(field, 1) for field in self.unique_fields]
+		self.collection.create_index(index_spec, unique=True)
 
-		self.params_list = {
+
+# ---------------------------------------------------------------------------
+# Parameter builder
+# ---------------------------------------------------------------------------
+class ParamsBuilder:
+	"""Generate API params & map date fields."""
+
+	def __init__(self, api_service_key: str, num_of_rows: int = 500):
+		self.api_service_key = api_service_key
+		self.num_of_rows = num_of_rows
+		self.params_list = self._build_params_list()
+		self.date_field_map = self._build_date_field_map()
+
+	def build(self, api_type: str, date: str, sub_type: Optional[int] = None) -> Dict[str, Any]:
+		params = (
+			self.params_list[api_type][sub_type].copy()
+			if api_type == "pubData"
+			else self.params_list[api_type].copy()
+		)
+		return self._set_date_params(api_type, params, date, sub_type)
+
+	# ------------------------------------------------------------------
+	# Internal helpers
+	# ------------------------------------------------------------------
+	def _set_date_params(self, api_type: str, params: Dict[str, Any], date: str, sub_type: Optional[int]):
+		start, end = f"{date}0000", f"{date}2359"
+		fields = (
+			self.date_field_map[api_type][sub_type]
+			if api_type == "pubData"
+			else self.date_field_map[api_type]
+		)
+		for idx, key in enumerate(fields):
+			params[key] = start if idx == 0 else end
+		return params
+
+	def _build_params_list(self):
+		sk, n = self.api_service_key, self.num_of_rows
+		return {
 			"notice": {
-				'serviceKey': self.API_SERVICE_KEY,
-				'pageNo': 1,
-				'numOfRows': numofRows,
-				'inqryDiv': 1,
-				'type': 'json',
-				'inqryBgnDt': None,
-				'inqryEndDt': None
+				"serviceKey": sk,
+				"pageNo": 1,
+				"numOfRows": n,
+				"inqryDiv": 1,
+				"type": "json",
+				"inqryBgnDt": None,
+				"inqryEndDt": None,
 			},
 			"bid": {
-				'serviceKey': self.API_SERVICE_KEY,
-				'pageNo': 1,
-				'numOfRows': numofRows,
-				'type': 'json',
-				'bidNtceNo': None,
+				"serviceKey": sk,
+				"pageNo": 1,
+				"numOfRows": n,
+				"type": "json",
+				"bidNtceNo": None,
 			},
 			"pubData": {
 				1: {
-					'serviceKey': self.API_SERVICE_KEY,
-					'pageNo': 1,
-					'numOfRows': numofRows,
-					'type': 'json',
-					'bsnsDivCd': None,
-					'bidNtceBgnDt': None,
-					'bidNtceEndDt': None,
+					"serviceKey": sk,
+					"pageNo": 1,
+					"numOfRows": n,
+					"type": "json",
+					"bsnsDivCd": None,
+					"bidNtceBgnDt": None,
+					"bidNtceEndDt": None,
 				},
 				2: {
-					'serviceKey': self.API_SERVICE_KEY,
-					'pageNo': 1,
-					'numOfRows': numofRows,
-					'type': 'json',
-					'bsnsDivCd': 3,
-					'opengBgnDt': None,
-					'opengEndDt': None,
+					"serviceKey": sk,
+					"pageNo": 1,
+					"numOfRows": n,
+					"type": "json",
+					"bsnsDivCd": 3,
+					"opengBgnDt": None,
+					"opengEndDt": None,
 				},
 				3: {
-					'serviceKey': self.API_SERVICE_KEY,
-					'pageNo': 1,
-					'numOfRows': numofRows,
-					'type': 'json',
-					'cntrctCnclsBgnDate': None,
-					'cntrctCnclsEndDate': None,
-				}
-			}
+					"serviceKey": sk,
+					"pageNo": 1,
+					"numOfRows": n,
+					"type": "json",
+					"cntrctCnclsBgnDate": None,
+					"cntrctCnclsEndDate": None,
+				},
+			},
 		}
 
-		self.date_field_map = {
+	@staticmethod
+	def _build_date_field_map():
+		return {
 			"notice": ["inqryBgnDt", "inqryEndDt"],
-			"bid": [],  # 날짜필드 없음
+			"bid": [],
 			"pubData": {
 				1: ["bidNtceBgnDt", "bidNtceEndDt"],
 				2: ["opengBgnDt", "opengEndDt"],
-				3: ["cntrctCnclsBgnDate", "cntrctCnclsEndDate"]
-			}
+				3: ["cntrctCnclsBgnDate", "cntrctCnclsEndDate"],
+			},
 		}
 
-	def set_date_params(self, api_type: str, params: dict, sub_type: int = None, date: str = ""):
-		start = date + "0000"
-		end = date + "2359"
 
-		if api_type == "pubData":
-			fields = self.date_field_map[api_type][sub_type]
-		else:
-			fields = self.date_field_map[api_type]
+# ---------------------------------------------------------------------------
+# Record writer
+# ---------------------------------------------------------------------------
+class RecordWriter:
+	"""Append processed ids/dates to text files under fetch_record/"""
 
-		for i, key in enumerate(fields):
-			params[key] = start if i == 0 else end
+	def __init__(self, collection_name: str):
+		self.root = os.path.join(get_project_root(), "fetch_record", collection_name)
+		os.makedirs(self.root, exist_ok=True)
 
-		return params
+	def append(self, text: str, filename: str):
+		with open(os.path.join(self.root, filename), "a", encoding="utf-8") as fh:
+			fh.write(text + "\n")
 
-	def record_txt(self, record_str: str, txt_file_name):
-		"""
-		새로 처리한 날짜를 파일에 한 줄씩 기록
-		"""
-		root_dir_path = os.path.join(get_project_root(), "fetch_record")
-		os.makedirs(root_dir_path, exist_ok=True)
 
-		collection_name_dir_path = os.path.join(root_dir_path, self.collection_name)
-		os.makedirs(collection_name_dir_path, exist_ok=True)
+# ---------------------------------------------------------------------------
+# DataCollector orchestrator
+# ---------------------------------------------------------------------------
+class DataCollector:
+	"""Top‑level orchestrator that glues API ↔ DB ↔ filesystem."""
 
-		file_path = os.path.join(collection_name_dir_path, txt_file_name)
-		with open(file_path, "a", encoding="utf-8") as f:
-			f.write(record_str + "\n")
+	def __init__(
+			self,
+			service_name: str | None = None,
+			operation_number: str | int | None = None,
+			year: str | int | None = None,
+	) -> None:
+		# ------------------------------------------------------------------
+		# Resolve user input / defaults
+		# ------------------------------------------------------------------
+		self.executed_year = year
+		if service_name is None and operation_number is None:
+			service_name, operation_number = input_handler()
+		self.service_name, self.operation_number = service_name, operation_number
 
-	def get_json_with_retry(self, url, params, date, retry_interval=10):
-		from requests.exceptions import JSONDecodeError, ConnectionError
+		# ------------------------------------------------------------------
+		# External resources
+		# ------------------------------------------------------------------
+		self.server, self.client = init_mongodb()
+		self.db = self.client.get_database("gfcon_raw")
 
-		def error_handler(e: str, interval: int):
-			self.loggers["application"].error(
-				f'{date} - {e} 발생, {interval}초 후 재시도 중...')
-			self.loggers["error"].error(
-				f'{date} - {e} 발생, {interval}초 후 재시도 중...')
-			time.sleep(interval)
+		self.API_BASE_DOMAIN = os.getenv("API_BASE_DOMAIN", "https://api.g2b.go.kr")
+		self.API_SERVICE_KEY = os.getenv("API_SERVICE_KEY", "")
 
-		while True:
-			try:
-				try:
-					response = self.session.get(url, params=params)
-				except ConnectionError:
-					error_handler("ConnectionError", interval=retry_interval)
-					continue
+		# ------------------------------------------------------------------
+		# Service metadata (dynamic per user choice)
+		# ------------------------------------------------------------------
+		svc_info = get_service_info(service_name=self.service_name, operation_number=self.operation_number)
+		op_info = svc_info["filtered_operations"][0]
 
-				try:
-					return response.json()
-				except JSONDecodeError:
-					error_handler("JSONDecodeError", interval=retry_interval)
+		self.collection_name = op_info["raw_data_collection_name"]
+		service_endpoint = svc_info["service_endpoint"]
+		operation_endpoint = op_info["오퍼레이션명(영문)"]
+		self.endpoint = f"{service_endpoint}/{operation_endpoint}"
+		self.unique_fields = op_info["unique_fields"]
 
-			except Exception as e:
-				self.loggers["application"].error(
-					f"{self.collection_name} - 요청 중 오류 발생: {str(e)}", exc_info=True)
-				self.loggers["error"].error(
-					f"{self.collection_name} - 요청 중 오류 발생: {str(e)}", exc_info=True)
-				raise
+		# ------------------------------------------------------------------
+		# Utilities / helpers
+		# ------------------------------------------------------------------
+		self.loggers = setup_loggers(year=self.executed_year)
+		self.api = ApiClient(self.API_BASE_DOMAIN, self.loggers)
+		self.params_builder = ParamsBuilder(self.API_SERVICE_KEY)
+		self.mongo = MongoWriter(self.db, self.collection_name, self.unique_fields)
+		self.recorder = RecordWriter(self.collection_name)
 
 	# 공고 데이터 및 기업 데이터 수집에 사용
 	def collect_data_by_day(self, date: str, collect_bids: bool = False,
 	                        bid_counter_by_date: dict | None = None) -> int | None | Any:
 
 		if self.service_name == "공공데이터개방표준서비스":
-			api_type = "pubData"
-			sub_type = self.operation_number
-			params = self.params_list[api_type][sub_type].copy()
+			api_type, sub_type = "pubData", self.operation_number
 		else:
-			api_type = "notice"
-			sub_type = None
-			params = self.params_list[api_type].copy()
-
-		# 날짜 필드 자동 설정
-		params = self.set_date_params(api_type, params, sub_type=sub_type, date=date)
+			api_type, sub_type = "notice", None
+		params = self.params_builder.build(api_type, date, sub_type)
 
 		try:
-			data = self.get_json_with_retry(self.url, params, date, retry_interval=10)
+			data = self.api.get(self.endpoint, params)
 
 			total_count = data['response']['body']['totalCount']
 			num_of_rows = params['numOfRows']
@@ -230,58 +314,34 @@ class DataCollector:
 					self.loggers["application"].verify(
 						f'{date} - 데이터 개수 불일치 - API:{total_count} | DB:{db_date_count} - CONTINUE')
 
-			total_success = 0
-			total_insert = 0
-			total_update = 0
-			total_failed = 0
+			total_success, total_insert, total_update, total_failed = 0, 0, 0, 0
 
 			for page in range(1, total_pages + 1):
 				page_insert_count = 0
 				page_update_count = 0
 
 				params['pageNo'] = page
-				data = self.get_json_with_retry(self.url, params, date, retry_interval=10)
+				data = self.api.get(self.endpoint, params)
 
-				if 'response' in data:
-					items = data['response']['body']['items']
-					if isinstance(items, dict):
-						items = [items]
+				items = data['response']['body']['items']
+				if isinstance(items, dict):
+					items = [items]
 
-					success_count = 0
-					for item in items:
-						try:
-							item['collected_at'] = datetime.now()
+				for item in items:
+					result = self.mongo.upsert(item)
+					if result == "insert":
+						page_insert_count += 1
+					elif result == "update":
+						page_update_count += 1
+					else:
+						total_failed += 1
 
-							# 먼저 insert를 시도, 중복되면 update 수행
-							try:
-								self.collection.insert_one(item)  # 새로운 데이터 삽입
-								page_insert_count += 1
-							except DuplicateKeyError:
-								# 중복된 경우 update 수행
-								item.pop("_id", None)
-
-								update_query = {}
-								for uf in self.unique_fields:
-									update_query[uf] = item[uf]
-
-								self.collection.update_one(
-									update_query,
-									{"$set": item}
-								)
-								page_update_count += 1
-
-						except Exception as e:
-							self.loggers["application"].error(
-								f'저장 실패: {item["bidNtceNo"]} - {item["bidNtceOrd"]}, 에러: {e}')
-							self.loggers["error"].error(f'저장 실패: {item["bidNtceNo"]} - {item["bidNtceOrd"]}, 에러: {e}')
-							total_failed += 1
-
-					success_count = page_insert_count + page_update_count
-					total_insert += page_insert_count
-					total_update += page_update_count
-					total_success += success_count
-					self.loggers['application'].fetch(
-						f"{date} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
+				success_count = page_insert_count + page_update_count
+				total_insert += page_insert_count
+				total_update += page_update_count
+				total_success += success_count
+				self.loggers['application'].fetch(
+					f"{date} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
 
 			self.loggers["application"].day(
 				f"{self.collection_name} - {date} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
@@ -295,38 +355,28 @@ class DataCollector:
 			self.loggers["error"].error(f"{self.collection_name} - {date} - 처리 중 오류 발생: {str(e)}", exc_info=True)
 			raise
 
-	def collect_all_data_by_day(self, start_date: str, end_date: str):
+	def collect_all_data_by_day(self, start_date: str, end_date: str) -> None:
 		# 투찰 데이터 수집인지?
 		collect_bids: bool = (self.collection_name == "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보")
 
-		# 유니크 인덱스 설정
-		unique_fields_query: list[tuple] = []  # Like [("bidNtceNo", 1), ("bidNtceOrd", 1)]
-		for uf in self.unique_fields:
-			unique_fields_query.append(tuple([uf, 1]))
-
-		# 복합 인덱스 생성 (이미 존재하면 무시됨)
-		self.collection.create_index(unique_fields_query, unique=True)
-
 		date_list = list(generate_dates(start_date, end_date))
-
 		self.loggers["application"].info(f"{start_date} ~ {end_date} 내 데이터를 모두 가져옵니다.")
 
 		bid_counter_by_date = self.count_data_by_date(start_date, end_date) if collect_bids else None
 
 		pending_dates = date_list
-
 		attempt = 1
 
 		while pending_dates:
 			# 이번시도에서 실패한 날짜 기록
-			error_dates = []
+			error_dates: list[str] = []
+
 			for date in pending_dates:
 				try:
-					result = self.collect_data_by_day(date, collect_bids, bid_counter_by_date=bid_counter_by_date)
-					self.record_txt(date, "fetched_date.txt")
+					self.collect_data_by_day(date, collect_bids, bid_counter_by_date=bid_counter_by_date)
 				except Exception as e:
 					self.loggers["error"].error(f"{self.collection_name} - {date} - 수집 실패: {str(e)}")
-					self.record_txt(date, "error_date.txt")
+					self.recorder.append(date, "error_date.txt")
 					error_dates.append(date)
 
 			if not error_dates:
@@ -340,89 +390,74 @@ class DataCollector:
 
 	def collect_bids_by_NtceNo(self, NtceNo: str):
 		try:
-			params = self.params_list["bid"]
+			# 1) 파라미터 준비 (ParamsBuilder 내부 기본값 활용)
+			params = self.params_builder.params_list["bid"].copy()
 			params["bidNtceNo"] = NtceNo
 
-			response = self.session.get(self.url, params=params)
+			# 2) 첫 페이지 호출 → 전체 건수 파악
+			data = self.api.get(self.endpoint, params)
+			total_count = data["response"]["body"]["totalCount"]
+			num_rows = params["numOfRows"]
+			total_pages = -(-total_count // num_rows)  # ceiling division
 
-			data = response.json()
+			self.loggers["application"].day(f"{self.collection_name} - {NtceNo} - 전체 데이터 수: {total_count}")
+			self.loggers["day"].day(f"{self.collection_name} - {NtceNo} - 전체 데이터 수: {total_count}")
 
-			total_count = data['response']['body']['totalCount']
-			num_of_rows = params['numOfRows']
-			total_pages = -(-total_count // num_of_rows)
+			total_success = total_insert = total_update = total_failed = 0
 
-			self.loggers["application"].day(f'{self.collection_name} - {NtceNo} - 전체 데이터 수: {total_count}')
-			self.loggers["day"].day(f'{self.collection_name} - {NtceNo} - 전체 데이터 수: {total_count}')
-
-			total_success = 0
-			total_insert = 0
-			total_update = 0
-			total_failed = 0
-
+			# 3) 페이지 루프
 			for page in range(1, total_pages + 1):
-				page_insert_count = 0
-				page_update_count = 0
+				page_insert_count = page_update_count = 0
 
-				params['pageNo'] = page
-				response = self.session.get(self.url, params=params)
-				data = response.json()
+				params["pageNo"] = page
+				data = self.api.get(self.endpoint, params)
 
-				if 'response' in data:
-					items = data['response']['body']['items']
-					if isinstance(items, dict):
-						items = [items]
+				items = data["response"]["body"]["items"]
+				if isinstance(items, dict):
+					items = [items]
 
-					success_count = 0
-					for item in items:
-						try:
-							item['collected_at'] = datetime.now()
+				for item in items:
+					item["collected_at"] = datetime.now()
+					result = self.mongo.upsert(item)
+					if result == "insert":
+						page_insert_count += 1
+					elif result == "update":
+						page_update_count += 1
+					else:
+						total_failed += 1
 
-							# 먼저 insert를 시도, 중복되면 update 수행
-							try:
-								self.collection.insert_one(item)  # 새로운 데이터 삽입
-								page_insert_count += 1
-							except DuplicateKeyError:
-								# 중복된 경우 update 수행
-								item.pop("_id", None)
+				success_count = page_insert_count + page_update_count
+				total_insert += page_insert_count
+				total_update += page_update_count
+				total_success += success_count
 
-								update_query = {}
-								for uf in self.unique_fields:
-									update_query[uf] = item[uf]
+				self.loggers["application"].fetch(
+					f"{self.collection_name} - {page}/{total_pages} 페이지 처리완료: "
+					f"{success_count}({page_insert_count}+{page_update_count})건"
+				)
 
-								self.collection.update_one(
-									update_query,
-									{"$set": item}
-								)
-								page_update_count += 1
-
-						except Exception as e:
-							self.loggers["application"].error(
-								f'저장 실패: {item["bidNtceNo"]} - {item["prcbdrBizno"]}, 에러: {e}')
-							self.loggers["error"].error(f'저장 실패: {item["bidNtceNo"]} - {item["prcbdrBizno"]}, 에러: {e}')
-							total_failed += 1
-
-					success_count = page_insert_count + page_update_count
-					total_insert += page_insert_count
-					total_update += page_update_count
-					total_success += success_count
-					self.loggers['application'].fetch(
-						f"{self.collection_name} - {page}/{total_pages} 페이지 처리완료: {success_count}({page_insert_count}+{page_update_count})건")
-
+			# 4) 최종 요약 로그
 			self.loggers["application"].day(
-				f"{self.collection_name} - {NtceNo} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
+				f"{self.collection_name} - {NtceNo} - 최종 저장 건수: "
+				f"{total_success}({total_insert}+{total_update})"
+			)
 			self.loggers["day"].day(
-				f"{self.collection_name} - {NtceNo} - 최종 저장 건수: {total_success}({total_insert}+{total_update})")
+				f"{self.collection_name} - {NtceNo} - 최종 저장 건수: "
+				f"{total_success}({total_insert}+{total_update})"
+			)
 			return total_success
 
 		except Exception as e:
-			self.loggers["application"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}",
-			                                  exc_info=True)
-			self.loggers["error"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}", exc_info=True)
+			self.loggers["application"].error(
+				f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {e}", exc_info=True
+			)
+			self.loggers["error"].error(
+				f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {e}", exc_info=True
+			)
 			raise
 
 	def get_notice_number_list(self):
-		db = self.client.get_database("gfcon_raw")
-		collection = db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")
+		collection = self.db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")
 		result = collection.find({}, {"bidNtceNo": 1, "_id": 0})
 
 		result = [doc['bidNtceNo'] for doc in result]
@@ -430,13 +465,6 @@ class DataCollector:
 		return result
 
 	def collect_all_bids_by_NtceNo(self):
-
-		unique_fields_query: list[tuple] = []  # Like [("bidNtceNo", 1), ("bidNtceOrd", 1)]
-		for uf in self.unique_fields:
-			unique_fields_query.append(tuple([uf, 1]))
-
-		# 복합 인덱스 생성 (이미 존재하면 무시됨)
-		self.collection.create_index(unique_fields_query, unique=True)
 
 		collection_notices = self.db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")
 
@@ -464,7 +492,7 @@ class DataCollector:
 			for notice_number in pending_notices:
 				try:
 					result = self.collect_bids_by_NtceNo(notice_number)
-					self.record_txt(notice_number, "fetched_notice.txt")
+					self.recorder.append(notice_number, "fetched_notice.txt")
 
 					# 수집이 완료되면 해당 공고의 bids_info_is_collected를 True로 업데이트
 					collection_notices.update_one(
@@ -474,7 +502,7 @@ class DataCollector:
 
 				except Exception as e:
 					self.loggers["error"].error(f"{self.collection_name} - {notice_number} - 수집 실패: {str(e)}")
-					self.record_txt(notice_number, "error_notice.txt")
+					self.recorder.append(notice_number, "error_notice.txt")
 					error_notices.append(notice_number)
 
 			if not error_notices:
@@ -487,6 +515,8 @@ class DataCollector:
 			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
 
 	def count_data_by_date(self, start_date: str, end_date: str) -> dict:
+		pipeline = []
+
 		# 투찰데이터 수집의 경우
 		if self.collection_name == "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보":
 			date_field_name = "opengDate"
@@ -517,7 +547,7 @@ class DataCollector:
 		elif self.collection_name == "입찰공고정보서비스.입찰공고목록정보에대한공사조회":
 			date_field_name = "rgstDt"
 
-		result = list(self.collection.aggregate(pipeline))
+		result = list(self.mongo.collection.aggregate(pipeline))
 		return {item['_id']: item['count'] for item in result}
 
 	def execute(self):
