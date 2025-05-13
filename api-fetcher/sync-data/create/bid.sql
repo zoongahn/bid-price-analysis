@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS bid
 
     PRIMARY KEY (bidNtceNo, bidNtceOrd, bidprcCorpBizrno),
     FOREIGN KEY (bidNtceNo, bidNtceOrd) REFERENCES notice (bidNtceNo, bidNtceOrd),
-    FOREIGN KEY (bidprcCorpBizrno) REFERENCES corporation (biz_register_number)
+    FOREIGN KEY (bidprcCorpBizrno) REFERENCES company (bizno)
 );
 
 COMMENT ON COLUMN bid.bidNtceNo IS '입찰공고번호';

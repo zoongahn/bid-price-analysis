@@ -170,36 +170,37 @@ class DataCollector:
 			pending_dates = error_dates  # 에러 발생한 날짜들만 다시 시도
 			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
 
-	def collect_bids_by_NtceNo(self, NtceNo: str):
+	def collect_notice_by_NtceNo(self, NtceNo: str) -> None:
+		params = {
+			"serviceKey": self.API_SERVICE_KEY,
+			"pageNo": 1,
+			"numOfRows": 100,
+			"inqryDiv": 2,
+			"type": "json",
+			"bidNtceNo": NtceNo
+		}
+
 		try:
-			# 1) 파라미터 준비 (ParamsBuilder 내부 기본값 활용)
-			params = self.params_builder.params_list["bid"].copy()
-			params["bidNtceNo"] = NtceNo
-
-			# 2) 첫 페이지 호출 → 전체 건수 파악
 			data = self.api.get(self.endpoint, params)
-			total_count = data["response"]["body"]["totalCount"]
-			num_rows = params["numOfRows"]
-			total_pages = -(-total_count // num_rows)  # ceiling division
 
-			self.loggers["application"].day(f"{self.collection_name} - {NtceNo} - 전체 데이터 수: {total_count}")
-			self.loggers["day"].day(f"{self.collection_name} - {NtceNo} - 전체 데이터 수: {total_count}")
+			total_count = data['response']['body']['totalCount']
+			num_of_rows = params['numOfRows']
+			total_pages = -(-total_count // num_of_rows)
 
-			total_success = total_insert = total_update = total_failed = 0
+			total_success, total_insert, total_update, total_failed = 0, 0, 0, 0
 
-			# 3) 페이지 루프
 			for page in range(1, total_pages + 1):
-				page_insert_count = page_update_count = 0
+				page_insert_count = 0
+				page_update_count = 0
 
-				params["pageNo"] = page
+				params['pageNo'] = page
 				data = self.api.get(self.endpoint, params)
 
-				items = data["response"]["body"]["items"]
+				items = data['response']['body']['items']
 				if isinstance(items, dict):
 					items = [items]
 
 				for item in items:
-					item["collected_at"] = datetime.now()
 					result = self.mongo.upsert(item)
 					if result == "insert":
 						page_insert_count += 1
@@ -213,29 +214,12 @@ class DataCollector:
 				total_update += page_update_count
 				total_success += success_count
 
-				self.loggers["application"].fetch(
-					f"{self.collection_name} - {page}/{total_pages} 페이지 처리완료: "
-					f"{success_count}({page_insert_count}+{page_update_count})건"
-				)
-
-			# 4) 최종 요약 로그
-			self.loggers["application"].day(
-				f"{self.collection_name} - {NtceNo} - 최종 저장 건수: "
-				f"{total_success}({total_insert}+{total_update})"
-			)
-			self.loggers["day"].day(
-				f"{self.collection_name} - {NtceNo} - 최종 저장 건수: "
-				f"{total_success}({total_insert}+{total_update})"
-			)
 			return total_success
 
 		except Exception as e:
-			self.loggers["application"].error(
-				f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {e}", exc_info=True
-			)
-			self.loggers["error"].error(
-				f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {e}", exc_info=True
-			)
+			self.loggers["application"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}",
+			                                  exc_info=True)
+			self.loggers["error"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}", exc_info=True)
 			raise
 
 	def get_notice_number_list(self):
@@ -245,56 +229,6 @@ class DataCollector:
 		result = [doc['bidNtceNo'] for doc in result]
 
 		return result
-
-	def collect_all_bids_by_NtceNo(self):
-
-		collection_notices = self.db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")
-
-		# 1. bids_info_is_collected=False인 공고번호만 가져오기
-		notice_number_list = [
-			doc["bidNtceNo"]
-			for doc in collection_notices.find(
-				{"bids_info_is_collected": False},
-				{"bidNtceNo": 1, "_id": 0}
-			)
-		]
-
-		if not notice_number_list:
-			self.loggers["application"].info("✅ 수집할 공고가 없습니다.")
-			return
-
-		self.loggers["application"].info(f"{notice_number_list[0]} ~ {notice_number_list[-1]} 내 데이터를 모두 가져옵니다.")
-
-		pending_notices = notice_number_list
-		attempt = 1
-
-		while pending_notices:
-			# 이번시도에서 실패한 공고번호 기록
-			error_notices = []
-			for notice_number in pending_notices:
-				try:
-					result = self.collect_bids_by_NtceNo(notice_number)
-					self.recorder.append(notice_number, "fetched_notice.txt")
-
-					# 수집이 완료되면 해당 공고의 bids_info_is_collected를 True로 업데이트
-					collection_notices.update_one(
-						{"bidNtceNo": notice_number},
-						{"$set": {"bids_info_is_collected": True}}
-					)
-
-				except Exception as e:
-					self.loggers["error"].error(f"{self.collection_name} - {notice_number} - 수집 실패: {str(e)}")
-					self.recorder.append(notice_number, "error_notice.txt")
-					error_notices.append(notice_number)
-
-			if not error_notices:
-				self.loggers["application"].info("🎉 모든 데이터가 성공적으로 수집되었습니다.")
-				break
-
-			# 에러가 발생한 날짜들에 대해 다시 시도
-			self.loggers["application"].warning(f"⚠️ [{attempt}차 시도] {len(error_notices)}개의 날짜에서 오류 발생. 재시도 진행.")
-			pending_notices = error_notices  # 에러 발생한 날짜들만 다시 시도
-			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
 
 	def count_data_by_date(self, start_date: str, end_date: str) -> dict:
 		pipeline = []
@@ -341,9 +275,6 @@ class DataCollector:
 
 		# 전체수집
 		else:
-			if self.service_name == "낙찰정보서비스" and self.operation_number == 13:
-				self.collect_all_bids_by_NtceNo()
-			else:
-				start_date = '2010-01-01'
-				end_date = '2024-12-31'
-				self.collect_all_data_by_day(start_date, end_date)
+			start_date = '2010-01-01'
+			end_date = '2024-12-31'
+			self.collect_all_data_by_day(start_date, end_date)
