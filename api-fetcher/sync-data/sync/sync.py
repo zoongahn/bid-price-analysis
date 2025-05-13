@@ -77,7 +77,7 @@ class DataSync:
 			return
 		insert_sql = f"""
 			INSERT INTO notice ({', '.join(self.psql_columns)})
-			VALUES %s,
+			VALUES %s 
 			ON CONFLICT (bidNtceNo, bidNtceOrd) DO NOTHING;
 		"""
 		execute_values(self.psql_cur, insert_sql, rows, template=self.placeholder)
