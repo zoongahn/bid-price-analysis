@@ -1,10 +1,7 @@
-import os
-
 from common.init_mongodb import *
 
 
 class ApiInfo:
-
 	def __init__(self):
 		server, client = init_mongodb()
 

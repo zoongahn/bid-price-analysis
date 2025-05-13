@@ -1,5 +1,5 @@
 import argparse
-from data_collector import DataCollector
+from src.data_collector import DataCollector
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="데이터 수집용 스크립트")

@@ -78,6 +78,9 @@ def setup_loggers(year: str = None):
 
 	for name, log_file in log_files.items():
 		logger = logging.getLogger(name)
+		# Prevent duplicate logs when setup_loggers() is called again
+		logger.handlers.clear()
+		logger.propagate = False
 		logger.setLevel(logging.DEBUG)  # 모든 레벨 허용
 
 		# 파일 핸들러 추가
