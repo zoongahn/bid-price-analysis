@@ -63,6 +63,15 @@ class DataSync:
 
 			buffer.append(tuple(row_dict.get(col) for col in self.psql_columns))
 
+			if len(buffer) >= self.batch_size:
+				self._flush(buffer)
+				buffer.clear()
+
+		if buffer:
+			self._flush(buffer)
+
+		print("✅  동기화 완료")
+
 	def _flush(self, rows: list[tuple]):
 		if not rows:
 			return
