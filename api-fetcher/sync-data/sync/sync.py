@@ -4,6 +4,7 @@ from utils.postgres_meta import PostgresMeta
 from transform_notice import transform_document
 from tqdm import tqdm
 from psycopg2.extras import execute_values
+from pymongo import UpdateOne
 
 
 class DataSync:
@@ -38,9 +39,13 @@ class DataSync:
 		rows.clear()
 
 	def _mark_synced(self, collection, key_list: list[tuple], key_fields: tuple[str, ...]):
+		ops = []
 		for keys in key_list:
 			query = dict(zip(key_fields, keys))
-			collection.update_one(query, {"$set": {"is_synced": True}})
+			ops.append(UpdateOne(query, {"$set": {"is_synced": True}}))
+
+		if ops:
+			collection.bulk_write(ops, ordered=False)
 
 	def sync_notice(self):
 		meta = PostgresMeta(self.psql_conn).get_column_types("notice")
