@@ -37,9 +37,10 @@ class DataSync:
 		self.psql_conn.commit()
 		rows.clear()
 
-	def _mark_synced(self, key_list: list[tuple[str, str]]):
-		for bid_no, bid_ord in key_list:
-			self.mongo_default.update_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, {"$set": {"is_synced": True}})
+	def _mark_synced(self, collection, key_list: list[tuple], key_fields: tuple[str, ...]):
+		for keys in key_list:
+			query = dict(zip(key_fields, keys))
+			collection.update_one(query, {"$set": {"is_synced": True}})
 
 	def sync_notice(self):
 		meta = PostgresMeta(self.psql_conn).get_column_types("notice")
@@ -64,7 +65,7 @@ class DataSync:
 
 		cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
 
-		for doc_default in tqdm(cursor, total=40000):
+		for doc_default in tqdm(cursor, total=total):
 			bid_no = doc_default["bidNtceNo"]
 			bid_ord = doc_default["bidNtceOrd"]
 
@@ -80,28 +81,30 @@ class DataSync:
 
 			if len(buffer) >= self.batch_size:
 				self._flush(buffer, "notice", psql_columns, placeholder, "(bidNtceNo, bidNtceOrd)")
-				self._mark_synced(synced_keys)
+				self._mark_synced(self.mongo_default, synced_keys, ("bidNtceNo", "bidNtceOrd"))
 				buffer.clear()
 				synced_keys.clear()
 
 		if buffer:
 			self._flush(buffer, "notice", psql_columns, placeholder, "(bidNtceNo, bidNtceOrd)")
-			self._mark_synced(synced_keys)
+			self._mark_synced(self.mongo_default, synced_keys, ("bidNtceNo", "bidNtceOrd"))
 
 		print("✅  동기화 완료")
 
 	def sync_reserve_price(self):
-
 		reserve_meta = PostgresMeta(self.psql_conn).get_column_types("reserve_price_range")
 		reserve_columns: list[str] = list(reserve_meta.keys())
 		reserve_placeholder = "(" + ",".join(["%s"] * len(reserve_columns)) + ")"
 
-		total = self.mongo_reserve_price.estimated_document_count()
-		print(f"🔄  총 {total:,} 건 (reserve_price_range) 동기화 시작 (batch={self.batch_size})")
+		total = self.mongo_reserve_price.count_documents({"is_synced": {"$ne": True}})
+		print(f"🔄  총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
+		synced_keys: list[tuple[str, str, str]] = []  # bidNtceNo, bidNtceOrd, compnoRsrvtnPrceSno 쌍 보관
 
-		for doc in tqdm(self.mongo_reserve_price.find({}), total=total):
+		cursor = self.mongo_reserve_price.find({"is_synced": {"$ne": True}}, {"_id": 0})
+
+		for doc in tqdm(cursor, total=total):
 			row_dict = transform_document(doc)
 			row_dict.pop("_id", None)
 
@@ -110,14 +113,18 @@ class DataSync:
 				row_dict["range_no"] = int(doc["compnoRsrvtnPrceSno"])
 
 			buffer.append(tuple(row_dict.get(col) for col in reserve_columns))
+			synced_keys.append((doc["bidNtceNo"], doc["bidNtceOrd"], str(doc["compnoRsrvtnPrceSno"])))
 
 			if len(buffer) >= self.batch_size:
 				self._flush(buffer, "reserve_price_range", reserve_columns, reserve_placeholder,
 				            "(bidNtceNo, bidNtceOrd, range_no)")
+				self._mark_synced(self.mongo_reserve_price, synced_keys,
+				                  ("bidNtceNo", "bidNtceOrd", "compnoRsrvtnPrceSno"))
 
 		if buffer:
 			self._flush(buffer, "reserve_price_range", reserve_columns, reserve_placeholder,
 			            "(bidNtceNo, bidNtceOrd, range_no)")
+			self._mark_synced(self.mongo_reserve_price, synced_keys, ("bidNtceNo", "bidNtceOrd", "compnoRsrvtnPrceSno"))
 
 		print("✅  reserve_price_range 동기화 완료")
 
