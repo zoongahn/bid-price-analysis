@@ -42,15 +42,20 @@ class DataSync:
 		self.psql_conn.commit()
 		rows.clear()
 
+	def _mark_synced(self, key_list: list[tuple[str, str]]):
+		for bid_no, bid_ord in key_list:
+			self.mongo_default.update_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, {"$set": {"is_synced": True}})
+
 	def sync_notice(self):
 		meta = PostgresMeta(self.psql_conn).get_column_types("notice")
 		psql_columns = list(meta.keys())
 		placeholder = "(" + ",".join(["%s"] * len(psql_columns)) + ")"
 
-		total = self.mongo_default.estimated_document_count()
-		print(f"🔄  총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
+		# total = self.mongo_default.count_documents({"is_synced": {"$ne": True}})
+		# print(f"🔄  총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
+		synced_keys: list[tuple[str, str]] = []  # bidNtceNo, bidNtceOrd 쌍 보관
 
 		WIN_FIELDS = [
 			"fnlSucsfAmt", "fnlSucsfRt", "fnlSucsfDate",
@@ -62,7 +67,9 @@ class DataSync:
 		WIN_PROJECTION = {f: 1 for f in WIN_FIELDS}
 		WIN_PROJECTION["_id"] = 0  # _id 제외
 
-		for doc_default in tqdm(self.mongo_default.find({}), total=total):
+		# cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
+		cursor = self.mongo_default.find({}).sort("_id", -1).limit(40000)
+		for doc_default in tqdm(cursor, total=40000):
 			bid_no = doc_default["bidNtceNo"]
 			bid_ord = doc_default["bidNtceOrd"]
 
@@ -71,17 +78,20 @@ class DataSync:
 
 			merged = {**doc_default, **doc_bssAmt, **doc_bid}
 			row_dict = transform_document(merged)
-
 			row_dict.pop("_id", None)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
+			synced_keys.append((bid_no, bid_ord))
 
 			if len(buffer) >= self.batch_size:
 				self._flush(buffer, "notice", psql_columns, placeholder, "(bidNtceNo, bidNtceOrd)")
+				self._mark_synced(synced_keys)
 				buffer.clear()
+				synced_keys.clear()
 
 		if buffer:
 			self._flush(buffer, "notice", psql_columns, placeholder, "(bidNtceNo, bidNtceOrd)")
+			self._mark_synced(synced_keys)
 
 		print("✅  동기화 완료")
 
@@ -131,5 +141,5 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync()
-	sync.test()
+	sync = DataSync(batch_size=10000)
+	sync.sync_notice()
