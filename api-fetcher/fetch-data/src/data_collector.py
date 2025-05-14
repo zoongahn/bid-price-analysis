@@ -1,4 +1,5 @@
 from typing import Any
+from tqdm import tqdm
 
 from common.logger import setup_loggers
 from common.utils import *
@@ -221,6 +222,10 @@ class DataCollector:
 			                                  exc_info=True)
 			self.loggers["error"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}", exc_info=True)
 			raise
+
+	def collect_all_notice_by_NtceNo(self, NtceNo_list: list[str]) -> None:
+		for n in tqdm(NtceNo_list, total=len(NtceNo_list)):
+			self.collect_notice_by_NtceNo(n)
 
 	def get_notice_number_list(self):
 		collection = self.db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")

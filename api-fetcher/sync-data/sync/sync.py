@@ -21,11 +21,6 @@ class DataSync:
 
 		self.batch_size = batch_size
 
-	def __del__(self):
-		self.psql_cur.close()
-		self.psql_conn.close()
-		self.mongo_server.close()
-
 	def delete_data(self, table_name: str):
 		self.psql_cur.execute(f"DELETE FROM {table_name};")
 		self.psql_conn.commit()
@@ -51,8 +46,8 @@ class DataSync:
 		psql_columns = list(meta.keys())
 		placeholder = "(" + ",".join(["%s"] * len(psql_columns)) + ")"
 
-		# total = self.mongo_default.count_documents({"is_synced": {"$ne": True}})
-		# print(f"🔄  총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
+		total = self.mongo_default.count_documents({"is_synced": {"$ne": True}})
+		print(f"🔄  총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
 		synced_keys: list[tuple[str, str]] = []  # bidNtceNo, bidNtceOrd 쌍 보관
@@ -67,8 +62,8 @@ class DataSync:
 		WIN_PROJECTION = {f: 1 for f in WIN_FIELDS}
 		WIN_PROJECTION["_id"] = 0  # _id 제외
 
-		# cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
-		cursor = self.mongo_default.find({}).sort("_id", -1).limit(40000)
+		cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
+
 		for doc_default in tqdm(cursor, total=40000):
 			bid_no = doc_default["bidNtceNo"]
 			bid_ord = doc_default["bidNtceOrd"]
@@ -127,19 +122,27 @@ class DataSync:
 		print("✅  reserve_price_range 동기화 완료")
 
 	def test(self):
-		def distinct_stream(coll, field):
+		def distinct_bid_keys_mongo(coll):
+			# MongoDB에서 (bidNtceNo, bidNtceOrd) 쌍을 가져오기
 			pipeline = [
-				{"$group": {"_id": f"${field}"}},
-				{"$project": {field: "$_id", "_id": 0}},
+				{"$project": {"_id": 0, "bidNtceNo": 1, "bidNtceOrd": 1}},
+				{"$group": {"_id": {"bidNtceNo": "$bidNtceNo", "bidNtceOrd": "$bidNtceOrd"}}},
 			]
-			for doc in coll.aggregate(pipeline, allowDiskUse=True):
-				yield doc[field]
+			for doc in coll.aggregate(pipeline):
+				yield doc["_id"]["bidNtceNo"], doc["_id"]["bidNtceOrd"]
 
-		a = set(distinct_stream(self.mongo_reserve_price, "bidNtceNo"))
-		b = set(distinct_stream(self.mongo_default, "bidNtceNo"))
-		print(a - b)
+		def fetch_notice_keys_postgres():
+			self.psql_cur.execute("SELECT bidNtceNo, bidNtceOrd FROM notice;")
+			return set(self.psql_cur.fetchall())
+
+		mongo_keys = set(distinct_bid_keys_mongo(self.mongo_reserve_price))
+		notice_keys = fetch_notice_keys_postgres()
+
+		missing = mongo_keys - notice_keys
+		print(f"🔍 reserve_price 중 notice에 없는 공고 {len(missing):,}건")
+		print([i for i, j in missing])
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=10000)
-	sync.sync_notice()
+	sync = DataSync(batch_size=1000)
+	sync.sync_reserve_price()
