@@ -125,10 +125,8 @@ class DataSync:
 			if preprocess:
 				row_dict = preprocess(doc)
 			else:
-				print(doc)
 				row_dict = transform_document(psql_table, doc, field_aliases=field_aliases)
 				row_dict.pop("_id", None)
-				print(row_dict)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
 			synced_keys.append(tuple(doc[field] for field in mongo_unique_keys))
@@ -190,5 +188,5 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=1000000)
-	sync.sync_reserve_price()
+	sync = DataSync(batch_size=100000)
+	sync.execute("reserve_price_range")
