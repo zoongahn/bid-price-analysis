@@ -1,6 +1,3 @@
-drop table reserve_price_range;
-
-
 CREATE TABLE IF NOT EXISTS reserve_price_range
 (
     /* 공고 식별자 */
@@ -55,3 +52,28 @@ COMMENT ON COLUMN reserve_price_range.rlOpengDt IS '실제 개찰 일시';
 COMMENT ON COLUMN reserve_price_range.bidwinrSlctnAplBssCntnts IS '낙찰자 결정 적용기준';
 COMMENT ON COLUMN reserve_price_range.inptDt IS '데이터 입력 일시';
 COMMENT ON COLUMN reserve_price_range.collected_at IS '데이터 수집(ETL) 시각';
+
+
+-- 복수예가 -> 해당 구간 사정률(총 15개)
+-- floor_5dp(user-defined-func.sql)이 UDP로써 미리 정의되어있어야함.
+ALTER TABLE reserve_price_range
+    ADD COLUMN bssamt_to_bsisplnprc_ratio NUMERIC GENERATED ALWAYS AS (
+        CASE
+            WHEN bssamt IS NOT NULL AND bssamt != 0 THEN ((bsisPlnprc / bssamt) - 1) * 100
+            ELSE NULL
+            END
+        ) STORED;
+
+ALTER TABLE reserve_price_range
+    ADD COLUMN bssamt_to_bsisplnprc_ratio_floor NUMERIC GENERATED ALWAYS AS (
+        CASE
+            WHEN bssamt IS NOT NULL AND bssamt != 0 THEN floor_5dp(((bsisPlnprc / bssamt) - 1) * 100)
+            ELSE NULL
+            END
+        ) STORED;
+
+alter table reserve_price_range
+    drop COLUMN bssamt_to_bsisplnprc_ratio_floor;
+
+alter table reserve_price_range
+    drop COLUMN bssamt_to_bsisplnprc_ratio;

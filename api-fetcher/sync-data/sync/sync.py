@@ -165,7 +165,7 @@ class DataSync:
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
-	def test(self):
+	def verify_notice_sync(self):
 		def distinct_bid_keys_mongo(coll):
 			# MongoDB에서 (bidNtceNo, bidNtceOrd) 쌍을 가져오기
 			pipeline = [
@@ -185,6 +185,22 @@ class DataSync:
 		missing = mongo_keys - notice_keys
 		print(f"🔍 reserve_price 중 notice에 없는 공고 {len(missing):,}건")
 		print([i for i, j in missing])
+
+	def verify_company_sync(self):
+		def distinct_bizrno_mongo():
+			# MongoDB에서 bidprcCorpBizrno 고유값 추출
+			return set(self.mongo_bid_list.distinct("bidprcCorpBizrno", {"bidprcCorpBizrno": {"$ne": None}}))
+
+		def fetch_bizno_postgres():
+			self.psql_cur.execute("SELECT bizno FROM company;")
+			return set(row[0] for row in self.psql_cur.fetchall())
+
+		mongo_bizrno = distinct_bizrno_mongo()
+		psql_bizno = fetch_bizno_postgres()
+
+		missing = mongo_bizrno - psql_bizno
+		print(f"🔍 bid_list 중 company에 없는 사업자번호 {len(missing):,}건")
+		print(list(missing))  # 앞에서 20개만 미리 확인
 
 
 if __name__ == "__main__":

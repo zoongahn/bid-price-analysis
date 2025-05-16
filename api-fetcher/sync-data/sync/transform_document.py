@@ -5,8 +5,6 @@ from utils import *
 
 psql_server, psql_conn = init_psql()
 
-_META = PostgresMeta(psql_conn)
-
 # 각 Postgres 타입 => 변환 함수
 _TYPE_CONVERTERS = {
 	"integer": to_int,
@@ -26,7 +24,8 @@ _TYPE_CONVERTERS = {
 
 def transform_document(table_name: str, doc: dict[str, Any], field_aliases: list[tuple[str, str]] = None) -> dict[
 	str, Any]:
-	_COL_TYPES = _META.get_column_types(table_name)
+	meta = PostgresMeta(psql_conn)
+	psql_columns = meta.get_column_types(table_name)
 
 	"""Mongo raw → Postgres ready dict (컬럼명 = notice 테이블 실제 칼럼)"""
 	# ① 몽고 키를 전부 소문자로 만들어 Postgres 컬럼과 맞춘다
@@ -39,7 +38,7 @@ def transform_document(table_name: str, doc: dict[str, Any], field_aliases: list
 
 	transformed: dict[str, Any] = {}
 
-	for col, pg_type in _COL_TYPES.items():
+	for col, pg_type in psql_columns.items():
 		raw_val = lowercase_doc.get(col)
 
 		# 빈 문자열·하이픈·공백 → NULL

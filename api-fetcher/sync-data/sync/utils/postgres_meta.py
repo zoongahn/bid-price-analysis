@@ -6,11 +6,11 @@ class PostgresMeta:
 
 	def get_column_types(self, table_name: str) -> dict[str, str]:
 		"""
-		{컬럼명: data_type} 딕셔너리 반환
+		{컬럼명: data_type} 딕셔너리 반환 (GENERATED 컬럼 제외)
 		"""
 		self.cur.execute(
 			"""
-			SELECT column_name, data_type
+			SELECT column_name, data_type, is_generated
 			FROM   information_schema.columns
 			WHERE  table_name = %s
 			  AND  table_schema = %s
@@ -18,7 +18,11 @@ class PostgresMeta:
 			""",
 			(table_name, self.schema),
 		)
-		return {col: dtype for col, dtype in self.cur.fetchall()}
+		return {
+			row[0]: row[1]
+			for row in self.cur.fetchall()
+			if row[2] != 'ALWAYS'  # GENERATED 컬럼 제외
+		}
 
 	def get_column_info(self, table_name: str):
 		self.cur.execute(
