@@ -190,5 +190,5 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=10000)
+	sync = DataSync(batch_size=1000000)
 	sync.sync_reserve_price()
