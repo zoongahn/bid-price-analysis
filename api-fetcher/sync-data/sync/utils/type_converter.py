@@ -18,6 +18,12 @@ def to_decimal(v):
 
 def to_datetime(v):
 	try:
-		return datetime.strptime(v, "%Y-%m-%d %H:%M:%S") if v else None
+		if type(v) is datetime:
+			return v
+		else:
+			if v:
+				return datetime.strptime(v, "%Y-%m-%d %H:%M:%S")
+			else:
+				return None
 	except:
 		return None

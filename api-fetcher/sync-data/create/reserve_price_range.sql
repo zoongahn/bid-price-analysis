@@ -11,11 +11,11 @@ CREATE TABLE IF NOT EXISTS reserve_price_range
     range_no                 SMALLINT NOT NULL,
 
     /* ── 금액/지표 ───────────────────── */
-    plnprc                   BIGINT,      -- 예정가격(플랜가격)
-    bssamt                   BIGINT,      -- 기초금액
-    bsisPlnprc               BIGINT,      -- 기초예정가격
+    plnprc                   NUMERIC,     -- 예정가격(플랜가격)
+    bssamt                   NUMERIC,     -- 기초금액
+    bsisPlnprc               NUMERIC,     -- 기초예정가격
     bssamtBssUpNum           SMALLINT,    -- 기초금액(실제) 상향 번호
-    PrearngPrcePurcnstcst    BIGINT,      -- 기초금액 순공사비 (채워져 있으면 숫자, 없으면 NULL)
+    PrearngPrcePurcnstcst    NUMERIC,     -- 기초금액 순공사비 (채워져 있으면 숫자, 없으면 NULL)
 
     /* ── 예가 생성/추첨 정보 ───────────── */
     totRsrvtnPrceNum         SMALLINT,    -- 총 예가 건수(보통 15)

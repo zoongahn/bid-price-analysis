@@ -1,53 +1,53 @@
 CREATE TABLE IF NOT EXISTS company
 (
     /* 고유 식별자 */
-    bizNo             CHAR(10) PRIMARY KEY, -- 사업자등록번호
+    bizNo             TEXT PRIMARY KEY, -- 사업자등록번호
 
     /* 한글/영문 상호 */
-    corpNm            TEXT NOT NULL,        -- 회사명(국문)
-    engCorpNm         TEXT,                 -- 회사명(영문)
+    corpNm            TEXT NOT NULL,    -- 회사명(국문)
+    engCorpNm         TEXT,             -- 회사명(영문)
 
     /* 개업일자 */
-    opBizDt           TIMESTAMP,            -- 개업일자
+    opBizDt           TIMESTAMP,        -- 개업일자
 
     /* 소재지 */
-    rgnCd             TEXT,                 -- 행정구역코드
-    rgnNm             TEXT,                 -- 행정구역명
-    zip               TEXT,                 -- 우편번호
-    adrs              TEXT,                 -- 도로명주소
-    dtlAdrs           TEXT,                 -- 상세주소
-    cntryNm           TEXT,                 -- 국가명
+    rgnCd             TEXT,             -- 행정구역코드
+    rgnNm             TEXT,             -- 행정구역명
+    zip               TEXT,             -- 우편번호
+    adrs              TEXT,             -- 도로명주소
+    dtlAdrs           TEXT,             -- 상세주소
+    cntryNm           TEXT,             -- 국가명
 
     /* 연락처 */
     telNo             TEXT,
     faxNo             TEXT,
-    hmpgAdrs          TEXT,                 -- 홈페이지
+    hmpgAdrs          TEXT,             -- 홈페이지
 
     /* 사업 구분·규모 */
-    mnfctDivCd        TEXT,                 -- 제조·공급 구분코드
-    mnfctDivNm        TEXT,                 -- 제조·공급 구분명
-    empLyeNum         INTEGER,              -- 종업원수
-    corpBsnsDivCd     TEXT,                 -- 사업분야 코드(콤마 구분)
-    corpBsnsDivNm     TEXT,                 -- 사업분야 명(콤마 구분)
-    hdOffceDivNm      TEXT,                 -- 본사/지사 구분
+    mnfctDivCd        TEXT,             -- 제조·공급 구분코드
+    mnfctDivNm        TEXT,             -- 제조·공급 구분명
+    empLyeNum         INTEGER,          -- 종업원수
+    corpBsnsDivCd     TEXT,             -- 사업분야 코드(콤마 구분)
+    corpBsnsDivNm     TEXT,             -- 사업분야 명(콤마 구분)
+    hdOffceDivNm      TEXT,             -- 본사/지사 구분
 
     /* 행정 정보 */
-    rgstDt            TIMESTAMP,            -- 최초 등록일시
-    chgDt             TIMESTAMP,            -- 최근 변경일시
-    esntlNoCertRgstYn CHAR(1),              -- 필수번호인증여부
+    rgstDt            TIMESTAMP,        -- 최초 등록일시
+    chgDt             TIMESTAMP,        -- 최근 변경일시
+    esntlNoCertRgstYn CHAR(1),          -- 필수번호인증여부
 
     /* 대표자 */
-    ceoNm             TEXT,                 -- 대표자명
+    ceoNm             TEXT,             -- 대표자명
 
     /* 메타 */
-    collected_at      TIMESTAMPTZ           -- 수집시각
+    collected_at      TIMESTAMPTZ       -- 수집시각
 );
 
 /* ──────────────────────────────────────────────────────────────────────────
    ② 컬럼 주석(선택) – psql COMMENT 구문
    ────────────────────────────────────────────────────────────────────────── */
 
-COMMENT ON COLUMN company.bizNo IS '사업자등록번호(Primary Key)';
+COMMENT ON COLUMN company.bizNo IS '사업자등록번호';
 COMMENT ON COLUMN company.corpNm IS '회사명(국문)';
 COMMENT ON COLUMN company.engCorpNm IS '회사명(영문)';
 COMMENT ON COLUMN company.opBizDt IS '개업일자';
