@@ -293,6 +293,6 @@ class DataCollector:
 
 		# 전체수집
 		else:
-			start_date = '2010-01-01'
-			end_date = '2024-12-31'
+			start_date = '2001-01-01'
+			end_date = '2009-12-31'
 			self.collect_all_data_by_day(start_date, end_date)

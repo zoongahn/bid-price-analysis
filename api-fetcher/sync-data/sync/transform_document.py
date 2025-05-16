@@ -5,6 +5,7 @@ from utils import *
 
 psql_server, psql_conn = init_psql()
 
+
 # 각 Postgres 타입 => 변환 함수
 _TYPE_CONVERTERS = {
 	"integer": to_int,
