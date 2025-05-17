@@ -278,7 +278,10 @@ class DataSync:
 	def verify_company_sync(self):
 		def distinct_bizrno_mongo():
 			# MongoDB 투찰데이터에서 bidprcCorpBizrno 고유값 추출
+
 			return set(self.mongo_bid.distinct("bidprcCorpBizrno", {"bidprcCorpBizrno": {"$ne": None}}))
+
+
 
 		def fetch_bizno_postgres():
 			self.psql_cur.execute("SELECT bizno FROM company;")
