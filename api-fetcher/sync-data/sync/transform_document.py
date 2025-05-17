@@ -16,6 +16,8 @@ _TYPE_CONVERTERS = {
 	"timestamp with time zone": to_datetime,
 	"timestamp": to_datetime,
 	"date": to_datetime,  # date도 YYYY-MM-DD → datetime.date 로 변환
+	"time": to_datetime,
+	"time without time zone": to_datetime,
 	"character": str,
 	"text": str,
 	"character varying": str,

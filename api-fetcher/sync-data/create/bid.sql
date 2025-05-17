@@ -9,9 +9,7 @@ CREATE TABLE IF NOT EXISTS bid
     presmptPrce      BIGINT,
     rsrvtnPrce       BIGINT,
     bssAmt           BIGINT,
-    opengDate        DATE,
-    opengTm          TIME,
-    opengRsltDivNm   TEXT,
+
     opengRank        INTEGER,
     bidprcCorpBizrno TEXT,
     bidprcCorpNm     TEXT,
@@ -36,9 +34,7 @@ COMMENT ON COLUMN bid.bsnsDivNm IS '사업구분명';
 COMMENT ON COLUMN bid.presmptPrce IS '예정가격';
 COMMENT ON COLUMN bid.rsrvtnPrce IS '예약가격';
 COMMENT ON COLUMN bid.bssAmt IS '기초금액';
-COMMENT ON COLUMN bid.opengDate IS '개찰일자';
-COMMENT ON COLUMN bid.opengTm IS '개찰시간';
-COMMENT ON COLUMN bid.opengRsltDivNm IS '개찰결과구분명';
+
 COMMENT ON COLUMN bid.opengRank IS '개찰순위';
 COMMENT ON COLUMN bid.bidprcCorpBizrno IS '입찰업체사업자등록번호';
 COMMENT ON COLUMN bid.bidprcCorpNm IS '입찰업체명';

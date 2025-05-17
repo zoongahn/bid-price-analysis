@@ -171,16 +171,7 @@ class DataCollector:
 			pending_dates = error_dates  # 에러 발생한 날짜들만 다시 시도
 			attempt += 1  # 다음 반복을 위해 시도 횟수 증가
 
-	def collect_notice_by_NtceNo(self, NtceNo: str) -> None:
-		params = {
-			"serviceKey": self.API_SERVICE_KEY,
-			"pageNo": 1,
-			"numOfRows": 100,
-			"inqryDiv": 2,
-			"type": "json",
-			"bidNtceNo": NtceNo
-		}
-
+	def collect_data_by_code(self, params: dict, code: str):
 		try:
 			data = self.api.get(self.endpoint, params)
 
@@ -218,14 +209,36 @@ class DataCollector:
 			return total_success
 
 		except Exception as e:
-			self.loggers["application"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}",
+			self.loggers["application"].error(f"{self.collection_name} - {code} - 처리 중 오류 발생: {str(e)}",
 			                                  exc_info=True)
-			self.loggers["error"].error(f"{self.collection_name} - {NtceNo} - 처리 중 오류 발생: {str(e)}", exc_info=True)
+			self.loggers["error"].error(f"{self.collection_name} - {code} - 처리 중 오류 발생: {str(e)}", exc_info=True)
 			raise
 
-	def collect_all_notice_by_NtceNo(self, NtceNo_list: list[str]) -> None:
-		for n in tqdm(NtceNo_list, total=len(NtceNo_list)):
-			self.collect_notice_by_NtceNo(n)
+	def collect_notice_by_NtceNo(self, NtceNo_list: list[str]) -> None:
+		for NtceNo in tqdm(NtceNo_list, total=len(NtceNo_list)):
+			params = {
+				"serviceKey": self.API_SERVICE_KEY,
+				"pageNo": 1,
+				"numOfRows": 100,
+				"inqryDiv": 2,
+				"type": "json",
+				"bidNtceNo": NtceNo
+			}
+
+			self.collect_data_by_code(params, code=NtceNo)
+
+	def collect_company_by_bizno(self, bizno_list: list[str]) -> None:
+		for bizno in tqdm(bizno_list, total=len(bizno_list)):
+			params = {
+				"serviceKey": self.API_SERVICE_KEY,
+				"pageNo": 1,
+				"numOfRows": 100,
+				"inqryDiv": 3,
+				"bizno": bizno,
+				"type": "json"
+			}
+
+			self.collect_data_by_code(params, code=bizno)
 
 	def get_notice_number_list(self):
 		collection = self.db.get_collection("낙찰정보서비스.낙찰된목록현황공사조회")

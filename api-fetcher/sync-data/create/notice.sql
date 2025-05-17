@@ -173,6 +173,10 @@ CREATE TABLE IF NOT EXISTS notice
     qltyMngcstAObjYn              CHAR(1),
     --- 공고 낙찰 오퍼레이션(기개찰)
     ---------------------------------------------------------------------
+    opengDate                     DATE,
+    opengTm                       TIME WITHOUT TIME ZONE,
+    opengRsltDivNm                TEXT,
+
     fnlSucsfAmt                   BIGINT,
     fnlSucsfRt                    NUMERIC,
     fnlSucsfDate                  DATE,
@@ -360,6 +364,10 @@ COMMENT ON COLUMN notice.qltyMngcst IS '품질관리비';
 COMMENT ON COLUMN notice.qltyMngcstAObjYn IS '품질관리비A적용대상여부';
 --- 공고 낙찰 오퍼레이션(기개찰)
 ---------------------------------------------------------------------
+COMMENT ON COLUMN notice.opengDate IS '개찰일시';
+COMMENT ON COLUMN notice.opengTm IS '개찰시간';
+COMMENT ON COLUMN notice.opengRsltDivNm IS '개찰결과구분명';
+
 COMMENT ON COLUMN notice.fnlSucsfAmt IS '최종낙찰금액';
 COMMENT ON COLUMN notice.fnlSucsfRt IS '최종낙찰률';
 COMMENT ON COLUMN notice.fnlSucsfDate IS '최종낙찰일자';
@@ -372,3 +380,20 @@ COMMENT ON COLUMN notice.fnlSucsfCorpContactTel IS '최종낙찰업체전화번�
 
 COMMENT ON COLUMN notice.cntrctCnclsSttusNm IS '계약체결상태명';
 COMMENT ON COLUMN notice.bidwinrDcsnMthdNm IS '낙찰자결정방법명';
+
+
+
+alter table notice
+    add column opengDate      DATE,
+    add column opengTm        TIME without time zone,
+    add column opengRsltDivNm TEXT;
+
+
+COMMENT ON COLUMN notice.opengDate IS '개찰일시';
+COMMENT ON COLUMN notice.opengTm IS '개찰시간';
+COMMENT ON COLUMN notice.opengRsltDivNm IS '개찰결과구분명';
+
+alter table notice
+    drop column opengDate,
+    drop column opengtm,
+    drop column opengRsltDivNm;

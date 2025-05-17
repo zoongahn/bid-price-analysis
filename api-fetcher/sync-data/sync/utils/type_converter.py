@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date, time
 from decimal import Decimal
 
 
@@ -18,12 +18,16 @@ def to_decimal(v):
 
 def to_datetime(v):
 	try:
-		if type(v) is datetime:
+		if isinstance(v, (datetime, date, time)):
 			return v
-		else:
-			if v:
-				return datetime.strptime(v, "%Y-%m-%d %H:%M:%S")
-			else:
-				return None
+		if not v:
+			return None
+		if isinstance(v, str):
+			for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%H:%M:%S", "%H:%M"):
+				try:
+					return datetime.strptime(v, fmt)
+				except ValueError:
+					continue
+		return None
 	except:
 		return None

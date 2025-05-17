@@ -20,7 +20,7 @@ class DataSync:
 		self.mongo_default = self.mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사조회")
 		self.mongo_bssAmt = self.mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사기초금액조회")
 		self.mongo_reserve_price = self.mongo_db.get_collection("낙찰정보서비스.개찰결과공사예비가격상세목록조회")
-		self.mongo_bid_list = self.mongo_db.get_collection("공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보")
+		self.mongo_bid = self.mongo_db.get_collection("공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보")
 		self.mongo_company = self.mongo_db.get_collection("사용자정보서비스.조달업체기본정보")
 
 		self.batch_size = batch_size
@@ -63,12 +63,12 @@ class DataSync:
 
 		cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
 
-		def transform_with_merge(doc):
+		def transform_with_merge(doc: dict) -> dict:
 			bid_no = doc["bidNtceNo"]
 			bid_ord = doc["bidNtceOrd"]
 
 			doc_bssAmt = self.mongo_bssAmt.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, {"_id": 0}) or {}
-			doc_bid = self.mongo_bid_list.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, WIN_PROJECTION) or {}
+			doc_bid = self.mongo_bid.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, WIN_PROJECTION) or {}
 
 			merged = {**doc, **doc_bssAmt, **doc_bid}
 			row_dict = transform_document("notice", merged, None)
@@ -143,6 +143,60 @@ class DataSync:
 
 		print(f"✅  {psql_table} 동기화 완료")
 
+	def sync_notice_openg_fields(self):
+		meta = PostgresMeta(self.psql_conn).get_column_types("notice")
+		psql_columns = ["bidntceno", "bidntceord", "opengdate", "opengtm", "opengrsltdivnm"]
+		placeholder = "(" + ",".join(["%s"] * len(psql_columns)) + ")"
+
+		self.psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
+		notice_keys = self.psql_cur.fetchall()
+		print(f"🔄 [notice.openg_fields] 총 {len(notice_keys):,}건 업데이트 시작")
+
+		buffer = []
+		for bid_no, bid_ord in tqdm(notice_keys, total=len(notice_keys)):
+			doc = self.mongo_bid.find_one(
+				{"bidNtceNo": bid_no, "bidNtceOrd": bid_ord},
+				{"_id": 0, "opengDate": 1, "opengTm": 1, "opengRsltDivNm": 1}
+			)
+			if not doc:
+				continue
+
+			row = (
+				bid_no,
+				bid_ord,
+				doc.get("opengDate"),
+				doc.get("opengTm"),
+				doc.get("opengRsltDivNm"),
+			)
+
+			buffer.append(row)
+
+			if len(buffer) >= self.batch_size:
+				self._flush_openg_fields(buffer, psql_columns, placeholder)
+				buffer.clear()
+
+		if buffer:
+			self._flush_openg_fields(buffer, psql_columns, placeholder)
+
+		print("✅  openg 필드 동기화 완료")
+
+	def _flush_openg_fields(self, rows: list[tuple], columns: list[str], placeholder: str):
+		if not rows:
+			return
+		sql = f"""
+			INSERT INTO notice ({', '.join(columns)})
+			VALUES %s
+			ON CONFLICT (bidntceno, bidntceord) DO UPDATE SET
+				opengdate = EXCLUDED.opengdate,
+				opengtm = EXCLUDED.opengtm,
+				opengrsltdivnm = EXCLUDED.opengrsltdivnm;
+		"""
+		execute_values(self.psql_cur, sql, rows, template=placeholder)
+		self.psql_conn.commit()
+		rows.clear()
+
+		exit()
+
 	def execute(self, sync_table: str):
 		match sync_table:
 			case "notice":
@@ -161,6 +215,22 @@ class DataSync:
 					psql_table="company",
 					psql_pk=("bizno",),
 					mongo_unique_keys=("bizno",)
+				)
+			case "bid":
+				def preprocess_bid(doc: dict) -> dict:
+					row_dict = transform_document("company", doc, None)
+					row_dict.pop("_id", None)
+					for pk_field in ("bizno",):
+						if not row_dict.get(pk_field):
+							row_dict[pk_field] = "__DEFAULT__"
+					return row_dict
+
+				self.sync_mongo_to_postgres(
+					mongo_collection=self.mongo_bid,
+					psql_table="bid",
+					psql_pk=("bidntceno", "bidntceord", "bidprcCorpBizrno"),
+					mongo_unique_keys=("bizno", "bidNtceNo", "bidNtceOrd"),
+					preprocess=preprocess_bid
 				)
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
@@ -188,8 +258,8 @@ class DataSync:
 
 	def verify_company_sync(self):
 		def distinct_bizrno_mongo():
-			# MongoDB에서 bidprcCorpBizrno 고유값 추출
-			return set(self.mongo_bid_list.distinct("bidprcCorpBizrno", {"bidprcCorpBizrno": {"$ne": None}}))
+			# MongoDB 투찰데이터에서 bidprcCorpBizrno 고유값 추출
+			return set(self.mongo_bid.distinct("bidprcCorpBizrno", {"bidprcCorpBizrno": {"$ne": None}}))
 
 		def fetch_bizno_postgres():
 			self.psql_cur.execute("SELECT bizno FROM company;")
@@ -204,5 +274,5 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=100000)
-	sync.execute("reserve_price_range")
+	sync = DataSync(batch_size=1)
+	sync.sync_notice_openg_fields()
