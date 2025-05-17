@@ -25,6 +25,8 @@ class DataSync:
 
 		self.batch_size = batch_size
 
+		self.total_skip = 0
+
 	def delete_data(self, table_name: str):
 		self.psql_cur.execute(f"DELETE FROM {table_name};")
 		self.psql_conn.commit()
@@ -113,18 +115,22 @@ class DataSync:
 		psql_columns = list(meta.keys())
 		placeholder = "(" + ",".join(["%s"] * len(psql_columns)) + ")"
 
-		total = mongo_collection.count_documents({"is_synced": {"$ne": True}})
+		# total = mongo_collection.count_documents({"is_synced": {"$ne": True}})
+		total = mongo_collection.count_documents({"bidNtceNo": "20091221595", "bidNtceOrd": "000"})
 		print(f"🔄 [{psql_table}] 총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
 		synced_keys: list[tuple] = []
 
-		cursor = mongo_collection.find({"is_synced": {"$ne": True}}, {"_id": 0})
+		# cursor = mongo_collection.find({"is_synced": {"$ne": True}}, {"_id": 0})
+		cursor = mongo_collection.find({"bidNtceNo": "20091221595", "bidNtceOrd": "000"}, {"_id": 0})
 
 		for doc in tqdm(cursor, total=total):
 			# 별도 함수가 파라미터로 전달되었는지?
 			if preprocess:
 				row_dict = preprocess(doc)
+				if row_dict is None:
+					continue
 			else:
 				row_dict = transform_document(psql_table, doc, field_aliases=field_aliases)
 				row_dict.pop("_id", None)
@@ -218,12 +224,22 @@ class DataSync:
 					mongo_unique_keys=("bizno",)
 				)
 			case "bid":
-				def preprocess_bid(doc: dict) -> dict:
+				self.psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
+				notice_keys = self.psql_cur.fetchall()
+				print(notice_keys)
+
+				def preprocess_bid(doc: dict) -> dict | None:
 					row_dict = transform_document("bid", doc, None)
 					row_dict.pop("_id", None)
-					for pk_field in ("bidprccorpbizrno",):
-						if not row_dict.get(pk_field):
-							row_dict[pk_field] = "__DEFAULT__"
+
+					# 외래키 관계 확인: notice에 존재하는 공고번호인지?
+					fk_key = (row_dict.get("bidntceno"), row_dict.get("bidntceord"))
+					if fk_key not in notice_keys:
+						self.total_skip += 1
+						return None  # None 반환 → 이후 insert 제외 처리
+
+					if not row_dict.get("bidprccorpbizrno"):
+						row_dict["bidprccorpbizrno"] = "__DEFAULT__"
 					return row_dict
 
 				self.sync_mongo_to_postgres(
@@ -233,6 +249,8 @@ class DataSync:
 					mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
 					preprocess=preprocess_bid
 				)
+				print(f"notice 테이블에 존재하지않는 공고번호 갯수(skip 횟수): {self.total_skip:,}회")
+				
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
@@ -271,7 +289,7 @@ class DataSync:
 
 		missing = mongo_bizrno - psql_bizno
 		print(f"🔍 bid_list 중 company에 없는 사업자번호 {len(missing):,}건")
-		print(list(missing))  # 앞에서 20개만 미리 확인
+		print(list(missing))
 
 
 if __name__ == "__main__":
