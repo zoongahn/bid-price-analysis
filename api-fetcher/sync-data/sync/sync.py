@@ -115,15 +115,13 @@ class DataSync:
 		psql_columns = list(meta.keys())
 		placeholder = "(" + ",".join(["%s"] * len(psql_columns)) + ")"
 
-		# total = mongo_collection.count_documents({"is_synced": {"$ne": True}})
-		total = mongo_collection.count_documents({"bidNtceNo": "20091221595", "bidNtceOrd": "000"})
+		total = mongo_collection.count_documents({"is_synced": {"$ne": True}})
 		print(f"🔄 [{psql_table}] 총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
 		synced_keys: list[tuple] = []
 
-		# cursor = mongo_collection.find({"is_synced": {"$ne": True}}, {"_id": 0})
-		cursor = mongo_collection.find({"bidNtceNo": "20091221595", "bidNtceOrd": "000"}, {"_id": 0})
+		cursor = mongo_collection.find({"is_synced": {"$ne": True}}, {"_id": 0})
 
 		for doc in tqdm(cursor, total=total):
 			# 별도 함수가 파라미터로 전달되었는지?
@@ -226,7 +224,6 @@ class DataSync:
 			case "bid":
 				self.psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
 				notice_keys = self.psql_cur.fetchall()
-				print(notice_keys)
 
 				def preprocess_bid(doc: dict) -> dict | None:
 					row_dict = transform_document("bid", doc, None)
