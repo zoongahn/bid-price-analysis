@@ -52,6 +52,7 @@ class DataSync:
 
 	def sync_notice(self):
 		WIN_FIELDS = [
+			"opengDate", "opengTm", "opengRsltDivNm",
 			"fnlSucsfAmt", "fnlSucsfRt", "fnlSucsfDate",
 			"fnlSucsfCorpNm", "fnlSucsfCorpCeoNm", "fnlSucsfCorpOfclNm",
 			"fnlSucsfCorpBizrno", "fnlSucsfCorpAdrs", "fnlSucsfCorpContactTel",
@@ -137,6 +138,8 @@ class DataSync:
 				buffer.clear()
 				synced_keys.clear()
 
+				exit()
+
 		if buffer:
 			self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
 			self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
@@ -195,8 +198,6 @@ class DataSync:
 		self.psql_conn.commit()
 		rows.clear()
 
-		exit()
-
 	def execute(self, sync_table: str):
 		match sync_table:
 			case "notice":
@@ -218,9 +219,9 @@ class DataSync:
 				)
 			case "bid":
 				def preprocess_bid(doc: dict) -> dict:
-					row_dict = transform_document("company", doc, None)
+					row_dict = transform_document("bid", doc, None)
 					row_dict.pop("_id", None)
-					for pk_field in ("bizno",):
+					for pk_field in ("bidprccorpbizrno",):
 						if not row_dict.get(pk_field):
 							row_dict[pk_field] = "__DEFAULT__"
 					return row_dict
@@ -228,8 +229,8 @@ class DataSync:
 				self.sync_mongo_to_postgres(
 					mongo_collection=self.mongo_bid,
 					psql_table="bid",
-					psql_pk=("bidntceno", "bidntceord", "bidprcCorpBizrno"),
-					mongo_unique_keys=("bizno", "bidNtceNo", "bidNtceOrd"),
+					psql_pk=("bidntceno", "bidntceord", "bidprccorpbizrno"),
+					mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
 					preprocess=preprocess_bid
 				)
 			case _:
@@ -274,5 +275,5 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=1)
-	sync.sync_notice_openg_fields()
+	sync = DataSync(batch_size=10)
+	sync.execute("bid")

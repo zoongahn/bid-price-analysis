@@ -1,5 +1,3 @@
-DROP TABLE bid;
-
 CREATE TABLE IF NOT EXISTS bid
 (
     bidNtceNo        TEXT,
