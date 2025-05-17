@@ -204,6 +204,7 @@ class DataSync:
 		self.psql_conn.commit()
 		rows.clear()
 
+
 	def execute(self, sync_table: str):
 		match sync_table:
 			case "notice":
@@ -296,5 +297,6 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=10)
+	sync = DataSync(batch_size=100000)
 	sync.execute("bid")
+
