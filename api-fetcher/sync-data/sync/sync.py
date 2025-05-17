@@ -144,7 +144,6 @@ class DataSync:
 				buffer.clear()
 				synced_keys.clear()
 
-				exit()
 
 		if buffer:
 			self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
@@ -297,6 +296,6 @@ class DataSync:
 
 
 if __name__ == "__main__":
-	sync = DataSync(batch_size=100000)
+	sync = DataSync(batch_size=10000)
 	sync.execute("bid")
 
