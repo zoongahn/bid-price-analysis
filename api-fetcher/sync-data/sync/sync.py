@@ -247,7 +247,7 @@ class DataSync:
 					preprocess=preprocess_bid
 				)
 				print(f"notice 테이블에 존재하지않는 공고번호 갯수(skip 횟수): {self.total_skip:,}회")
-				
+
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
