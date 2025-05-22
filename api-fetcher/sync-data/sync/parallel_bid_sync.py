@@ -60,28 +60,27 @@ class ParallelBidSync:
 
 		self._log(f"Split points calculated ({len(ids)} points): {ids}")
 
-		ids.append(ObjectId())
 		return ids
 
-	def get_split_points(self) -> list[ObjectId]:
-		self._log(f"Calculating split points for {self.num_workers} workers")
-		num_splits = self.num_workers
-		pipeline = [
-			{"$match": self.query},
-			{"$bucketAuto": {
-				"groupBy": "$_id",
-				"buckets": num_splits,
-				# output 필드는 count만 받아도 충분
-				"output": {"count": {"$sum": 1}}
-			}}
-		]
-		buckets = list(self.mongo_bid.aggregate(pipeline))
-		ids = [b["_id"]["min"] for b in buckets]
-		# 마지막 bucket의 max를 sentinel 처럼 추가
-		ids.append(buckets[-1]["_id"]["max"])
-
-		self._log(f"Split points calculated ({len(ids)} points): {ids}")
-		return ids
+	# def get_split_points(self) -> list[ObjectId]:
+	# 	self._log(f"Calculating split points for {self.num_workers} workers")
+	# 	num_splits = self.num_workers
+	# 	pipeline = [
+	# 		{"$match": self.query},
+	# 		{"$bucketAuto": {
+	# 			"groupBy": "$_id",
+	# 			"buckets": num_splits,
+	# 			# output 필드는 count만 받아도 충분
+	# 			"output": {"count": {"$sum": 1}}
+	# 		}}
+	# 	]
+	# 	buckets = list(self.mongo_bid.aggregate(pipeline))
+	# 	ids = [b["_id"]["min"] for b in buckets]
+	# 	# 마지막 bucket의 max를 sentinel 처럼 추가
+	# 	ids.append(buckets[-1]["_id"]["max"])
+	#
+	# 	self._log(f"Split points calculated ({len(ids)} points): {ids}")
+	# 	return ids
 
 	def run(self, split_point_ids: list[str] | None = None):
 		"""
@@ -97,6 +96,8 @@ class ParallelBidSync:
 		else:
 			self._log("No split_point_ids provided, computing with get_split_points()")
 			points = self.get_split_points()
+
+		points.append(ObjectId())
 
 		# 2) 공유 카운터 및 프로세스 리스트 준비
 		self._log("Step 2: spawning worker processes")
