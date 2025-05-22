@@ -26,11 +26,13 @@ class ParallelBidSync:
 		step = total // num_splits
 		ids: list[ObjectId] = []
 
-		self._log(f"Split points calculated ({len(ids)} points): {ids}")
 		for i in range(num_splits):
 			skip = i * step
-			doc = self.mongo_bid.find({"is_synced": {"$ne": True}}).skip(skip).limit(1).next()
+			doc = self.mongo_bid.find({"is_synced": {"$ne": True}}).sort("_id", 1).skip(skip).limit(1).next()
 			ids.append(doc["_id"])
+			self._log(f"  -> Split point {i + 1}/{num_splits}: {doc['_id']}")
+
+		self._log(f"Split points calculated ({len(ids)} points): {ids}")
 
 		ids.append(ObjectId())
 		return ids
@@ -96,4 +98,5 @@ def get_cpu_count():
 
 
 if __name__ == "__main__":
-	print(get_cpu_count())
+	parallel_bid_sync = ParallelBidSync(num_workers=get_cpu_count() * 2, batch_size=10000)
+	parallel_bid_sync.run()
