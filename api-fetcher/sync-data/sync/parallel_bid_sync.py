@@ -94,7 +94,6 @@ class ParallelBidSync:
 		# 1) split points 결정
 		if split_point_ids:
 			points = [ObjectId(s) for s in split_point_ids]
-			self._log(f"Using user-provided split points: {points}")
 		else:
 			self._log("No split_point_ids provided, computing with get_split_points()")
 			points = self.get_split_points()

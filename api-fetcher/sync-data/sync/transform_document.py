@@ -22,12 +22,13 @@ _TYPE_CONVERTERS = {
 }
 
 
-def transform_document(psql_cur,
+def transform_document(psql_conn,
                        table_name: str,
                        doc: dict[str, Any],
                        field_aliases: list[tuple[str, str]] = None,
                        ) -> dict[str, Any]:
-	psql_columns = psql_cur.get_column_types(table_name)
+	if psql_conn is not None:
+		psql_columns = PostgresMeta(psql_conn).get_column_types(table_name)
 
 	"""Mongo raw → Postgres ready dict (컬럼명 = notice 테이블 실제 칼럼)"""
 	# ① 몽고 키를 전부 소문자로 만들어 Postgres 컬럼과 맞춘다

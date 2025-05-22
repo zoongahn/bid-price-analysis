@@ -75,7 +75,7 @@ class DataSync:
 			doc_bid = self.mongo_bid.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, WIN_PROJECTION) or {}
 
 			merged = {**doc, **doc_bssAmt, **doc_bid}
-			row_dict = transform_document(self.psql_cur, "notice", merged, None)
+			row_dict = transform_document(self.psql_conn, "notice", merged, None)
 			row_dict.pop("_id", None)
 
 			return row_dict
@@ -140,14 +140,15 @@ class DataSync:
 		synced_keys: list[tuple] = []
 
 		cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(self.batch_size)
-		for doc in tqdm(cursor, total=total):
+		iterator = tqdm(cursor, total=total) if progress_counter is None else cursor
+		for doc in iterator:
 			# 별도 함수가 파라미터로 전달되었는지?
 			if preprocess:
 				row_dict = preprocess(doc)
 				if row_dict is None:
 					continue
 			else:
-				row_dict = transform_document(self.psql_cur, psql_table, doc, field_aliases=field_aliases)
+				row_dict = transform_document(self.psql_conn, psql_table, doc, field_aliases=field_aliases)
 				row_dict.pop("_id", None)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
@@ -262,7 +263,7 @@ class DataSync:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
 	def preprocess_bid(self, doc: dict) -> dict | None:
-		row_dict = transform_document(self.psql_cur, "bid", doc, None)
+		row_dict = transform_document(self.psql_conn, "bid", doc, None)
 		row_dict.pop("_id", None)
 
 		# 외래키 관계 확인: notice에 존재하는 공고번호인지?
