@@ -98,6 +98,7 @@ class DataSync:
 	                           preprocess: Optional[Callable[[dict], dict]] = None,
 	                           start_id: ObjectId | None = None,
 	                           end_id: ObjectId | None = None,
+	                           progress_counter=None
 	                           ):
 		"""
 		Parameters:
@@ -151,12 +152,21 @@ class DataSync:
 			if len(buffer) >= self.batch_size:
 				self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
 				self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
+
+				if progress_counter:
+					with progress_counter.get_lock():
+						progress_counter.value += len(buffer)
+
 				buffer.clear()
 				synced_keys.clear()
 
 		if buffer:
 			self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
 			self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
+
+			if progress_counter:
+				with progress_counter.get_lock():
+					progress_counter.value += len(buffer)
 
 		print(f"✅  {psql_table} 동기화 완료")
 
