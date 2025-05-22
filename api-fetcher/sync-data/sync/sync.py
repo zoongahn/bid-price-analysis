@@ -75,7 +75,7 @@ class DataSync:
 			doc_bid = self.mongo_bid.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, WIN_PROJECTION) or {}
 
 			merged = {**doc, **doc_bssAmt, **doc_bid}
-			row_dict = transform_document("notice", merged, None)
+			row_dict = transform_document(self.psql_cur, "notice", merged, None)
 			row_dict.pop("_id", None)
 
 			return row_dict
@@ -122,6 +122,7 @@ class DataSync:
 		"""
 
 		server, conn = init_psql()
+		self.psql_conn = conn
 		self.psql_cur = conn.cursor()
 
 		find_query = {"is_synced": {"$ne": True}}
@@ -146,7 +147,7 @@ class DataSync:
 				if row_dict is None:
 					continue
 			else:
-				row_dict = transform_document(psql_table, doc, field_aliases=field_aliases)
+				row_dict = transform_document(self.psql_cur, psql_table, doc, field_aliases=field_aliases)
 				row_dict.pop("_id", None)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
@@ -261,7 +262,7 @@ class DataSync:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
 	def preprocess_bid(self, doc: dict) -> dict | None:
-		row_dict = transform_document("bid", doc, None)
+		row_dict = transform_document(self.psql_cur, "bid", doc, None)
 		row_dict.pop("_id", None)
 
 		# 외래키 관계 확인: notice에 존재하는 공고번호인지?

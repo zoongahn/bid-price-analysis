@@ -3,9 +3,6 @@ from typing import Any
 from common.init_psql import init_psql
 from utils import *
 
-psql_server, psql_conn = init_psql()
-
-
 # 각 Postgres 타입 => 변환 함수
 _TYPE_CONVERTERS = {
 	"integer": to_int,
@@ -25,10 +22,12 @@ _TYPE_CONVERTERS = {
 }
 
 
-def transform_document(table_name: str, doc: dict[str, Any], field_aliases: list[tuple[str, str]] = None) -> dict[
-	str, Any]:
-	meta = PostgresMeta(psql_conn)
-	psql_columns = meta.get_column_types(table_name)
+def transform_document(psql_cur,
+                       table_name: str,
+                       doc: dict[str, Any],
+                       field_aliases: list[tuple[str, str]] = None,
+                       ) -> dict[str, Any]:
+	psql_columns = psql_cur.get_column_types(table_name)
 
 	"""Mongo raw → Postgres ready dict (컬럼명 = notice 테이블 실제 칼럼)"""
 	# ① 몽고 키를 전부 소문자로 만들어 Postgres 컬럼과 맞춘다

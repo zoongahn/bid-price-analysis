@@ -56,13 +56,11 @@ class ParallelBidSync:
 			# 이후엔 idx % step == 0 일 때마다 분할점 추가
 			if idx == 0 or (step and idx % step == 0):
 				ids.append(doc["_id"])
-				self._log(f"  -> Split point {len(ids) + 1}/{num_splits}: {doc['_id']}")
+				# self._log(f"  -> Split point {len(ids) + 1}/{num_splits}: {doc['_id']}")
 
 				# 원하는 개수 채웠다면 루프 종료
 				if len(ids) >= num_splits:
 					break
-
-		self._log(f"Split points calculated ({len(ids)} points): {ids}")
 
 		return ids
 
