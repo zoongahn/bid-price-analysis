@@ -71,3 +71,10 @@ COMMENT ON COLUMN company.chgDt IS '최근 변경일시';
 COMMENT ON COLUMN company.esntlNoCertRgstYn IS '필수번호 인증 등록 여부';
 COMMENT ON COLUMN company.ceoNm IS '대표자명';
 COMMENT ON COLUMN company.collected_at IS '데이터 수집 시각';
+
+
+
+INSERT INTO company (bizno, corpnm)
+VALUES ('__DEFAULT__', '미확인업체')
+ON CONFLICT DO NOTHING;
+

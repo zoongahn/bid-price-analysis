@@ -1,4 +1,5 @@
 from typing import Optional, Callable
+from bson import ObjectId
 
 from common.init_mongodb import init_mongodb
 from common.init_psql import init_psql
@@ -87,10 +88,17 @@ class DataSync:
 			preprocess=transform_with_merge
 		)
 
-	def sync_mongo_to_postgres(self, *, mongo_collection, psql_table: str, psql_pk: tuple[str, ...],
+	def sync_mongo_to_postgres(self,
+	                           *,
+	                           mongo_collection,
+	                           psql_table: str,
+	                           psql_pk: tuple[str, ...],
 	                           mongo_unique_keys: tuple[str, ...],
 	                           field_aliases: list[tuple[str, str]] | None = None,
-	                           preprocess: Optional[Callable[[dict], dict]] = None):
+	                           preprocess: Optional[Callable[[dict], dict]] = None,
+	                           start_id: ObjectId | None = None,
+	                           end_id: ObjectId | None = None,
+	                           ):
 		"""
 		Parameters:
 		    mongo_collection:
@@ -111,18 +119,22 @@ class DataSync:
 		        각 Mongo 문서를 PostgreSQL row 형식의 dict로 변환하는 사용자 정의 함수입니다.
 		        제공되지 않으면 기본 transform_document()가 사용됩니다.
 		"""
+
+		find_query = {"is_synced": {"$ne": True}}
+		if start_id and end_id:
+			find_query["_id"] = {"$gte": start_id, "$lt": end_id}
+
 		meta = PostgresMeta(self.psql_conn).get_column_types(psql_table)
 		psql_columns = list(meta.keys())
 		placeholder = "(" + ",".join(["%s"] * len(psql_columns)) + ")"
 
-		total = mongo_collection.count_documents({"is_synced": {"$ne": True}})
+		total = mongo_collection.count_documents(find_query)
 		print(f"🔄 [{psql_table}] 총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
 		synced_keys: list[tuple] = []
 
-		cursor = mongo_collection.find({"is_synced": {"$ne": True}}, {"_id": 0})
-
+		cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(self.batch_size)
 		for doc in tqdm(cursor, total=total):
 			# 별도 함수가 파라미터로 전달되었는지?
 			if preprocess:
@@ -141,7 +153,6 @@ class DataSync:
 				self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
 				buffer.clear()
 				synced_keys.clear()
-
 
 		if buffer:
 			self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
@@ -201,7 +212,6 @@ class DataSync:
 		self.psql_conn.commit()
 		rows.clear()
 
-
 	def execute(self, sync_table: str):
 		match sync_table:
 			case "notice":
@@ -223,33 +233,33 @@ class DataSync:
 				)
 			case "bid":
 				self.psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
-				notice_keys = self.psql_cur.fetchall()
-
-				def preprocess_bid(doc: dict) -> dict | None:
-					row_dict = transform_document("bid", doc, None)
-					row_dict.pop("_id", None)
-
-					# 외래키 관계 확인: notice에 존재하는 공고번호인지?
-					fk_key = (row_dict.get("bidntceno"), row_dict.get("bidntceord"))
-					if fk_key not in notice_keys:
-						self.total_skip += 1
-						return None  # None 반환 → 이후 insert 제외 처리
-
-					if not row_dict.get("bidprccorpbizrno"):
-						row_dict["bidprccorpbizrno"] = "__DEFAULT__"
-					return row_dict
+				self.notice_keys = self.psql_cur.fetchall()
 
 				self.sync_mongo_to_postgres(
 					mongo_collection=self.mongo_bid,
 					psql_table="bid",
 					psql_pk=("bidntceno", "bidntceord", "bidprccorpbizrno"),
 					mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
-					preprocess=preprocess_bid
+					preprocess=self.preprocess_bid
 				)
 				print(f"notice 테이블에 존재하지않는 공고번호 갯수(skip 횟수): {self.total_skip:,}회")
 
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
+
+	def preprocess_bid(self, doc: dict) -> dict | None:
+		row_dict = transform_document("bid", doc, None)
+		row_dict.pop("_id", None)
+
+		# 외래키 관계 확인: notice에 존재하는 공고번호인지?
+		fk_key = (row_dict.get("bidntceno"), row_dict.get("bidntceord"))
+		if fk_key not in self.notice_keys:
+			self.total_skip += 1
+			return None  # None 반환 → 이후 insert 제외 처리
+
+		if not row_dict.get("bidprccorpbizrno"):
+			row_dict["bidprccorpbizrno"] = "__DEFAULT__"
+		return row_dict
 
 	def verify_notice_sync(self):
 		def distinct_bid_keys_mongo(coll):
@@ -278,8 +288,6 @@ class DataSync:
 
 			return set(self.mongo_bid.distinct("bidprcCorpBizrno", {"bidprcCorpBizrno": {"$ne": None}}))
 
-
-
 		def fetch_bizno_postgres():
 			self.psql_cur.execute("SELECT bizno FROM company;")
 			return set(row[0] for row in self.psql_cur.fetchall())
@@ -295,4 +303,3 @@ class DataSync:
 if __name__ == "__main__":
 	sync = DataSync(batch_size=10000)
 	sync.execute("bid")
-
