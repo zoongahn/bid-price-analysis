@@ -5,6 +5,8 @@ from tqdm import tqdm
 import time
 
 from sync import DataSync
+from common.init_mongodb import init_mongodb
+from common.init_psql import init_psql
 
 
 def _run_worker(batch_size, notice_keys, query, start_id, end_id, progress_counter):
@@ -28,9 +30,11 @@ class ParallelBidSync:
 		self.num_workers = num_workers
 		self.syncer = DataSync(batch_size)
 		self.mongo_bid = self.syncer.mongo_bid
-		self.syncer.psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
+		psql_server, psql_conn = init_psql()
+		psql_cur = psql_conn.cursor()
+		psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
 		# DataSync 인스턴스 내부에 notice_keys 생성
-		self.syncer.notice_keys = self.syncer.psql_cur.fetchall()
+		self.syncer.notice_keys = psql_cur.fetchall()
 
 		self.query = {"is_synced": {"$ne": True}}
 		self.total_docs = None
