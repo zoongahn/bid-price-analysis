@@ -166,6 +166,7 @@ class DataSync:
 					with progress_counter.get_lock():
 						progress_counter.value += flushed_count
 
+
 				buffer.clear()
 				synced_keys.clear()
 
