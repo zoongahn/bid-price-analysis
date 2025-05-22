@@ -1,4 +1,4 @@
-from multiprocessing import Manager, Process
+from multiprocessing import Process, Value
 from pymongo import MongoClient
 from bson import ObjectId
 from tqdm import tqdm
@@ -37,14 +37,13 @@ class ParallelBidSync:
 		self.syncer.notice_keys = psql_cur.fetchall()
 
 		self.query = {"is_synced": {"$ne": True}}
-		self.total_docs = None
+		self.total_docs = self.mongo_bid.count_documents(self.query)
 
 	def _log(self, message: str):
 		print(f"[ParallelBidSync] {message}")
 
 	def get_split_points(self) -> list[ObjectId]:
 		self._log(f"Calculating split points for {self.num_workers} workers")
-		self.total_docs = self.mongo_bid.count_documents(self.query)
 		num_splits = self.num_workers
 		step = self.total_docs // num_splits
 		ids: list[ObjectId] = []
@@ -102,9 +101,7 @@ class ParallelBidSync:
 
 		# 2) 공유 카운터 및 프로세스 리스트 준비
 		self._log("Step 2: spawning worker processes")
-		manager = Manager()
-
-		progress_counter = manager.Value("i", 0)
+		progress_counter = Value("i", 0)
 		processes = []
 
 		# 3) 워커 스폰
@@ -195,5 +192,5 @@ if __name__ == "__main__":
 		"6805330f88c2e927260c9350",
 	]
 
-	parallel_bid_sync = ParallelBidSync(num_workers=get_cpu_count() * 2, batch_size=10000)
+	parallel_bid_sync = ParallelBidSync(num_workers=2, batch_size=100)
 	parallel_bid_sync.run(split_point_ids)

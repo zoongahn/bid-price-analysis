@@ -1,5 +1,6 @@
 from typing import Optional, Callable
 from bson import ObjectId
+import os
 
 from common.init_mongodb import init_mongodb
 from common.init_psql import init_psql
@@ -32,9 +33,10 @@ class DataSync:
 		self.psql_cur.execute(f"DELETE FROM {table_name};")
 		self.psql_conn.commit()
 
-	def _flush(self, rows: list[tuple], table: str, columns: list[str], placeholder: str, conflict_on: str):
+	def _flush(self, rows: list[tuple], table: str, columns: list[str], placeholder: str,
+	           conflict_on: str) -> int | None:
 		if not rows:
-			return
+			return None
 		sql = f"""
 			INSERT INTO {table} ({', '.join(columns)})
 			VALUES %s 
@@ -42,7 +44,9 @@ class DataSync:
 		"""
 		execute_values(self.psql_cur, sql, rows, template=placeholder)
 		self.psql_conn.commit()
+		l = len(rows)
 		rows.clear()
+		return l
 
 	def _mark_synced(self, collection, key_list: list[tuple], key_fields: tuple[str, ...]):
 		ops = []
@@ -155,23 +159,23 @@ class DataSync:
 			synced_keys.append(tuple(doc[field] for field in mongo_unique_keys))
 
 			if len(buffer) >= self.batch_size:
-				self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
+				flushed_count = self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
 				self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
 
 				if progress_counter:
 					with progress_counter.get_lock():
-						progress_counter.value += len(buffer)
+						progress_counter.value += flushed_count
 
 				buffer.clear()
 				synced_keys.clear()
 
 		if buffer:
-			self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
+			flushed_count = self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
 			self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
 
 			if progress_counter:
 				with progress_counter.get_lock():
-					progress_counter.value += len(buffer)
+					progress_counter.value += flushed_count
 
 		print(f"✅  {psql_table} 동기화 완료")
 
