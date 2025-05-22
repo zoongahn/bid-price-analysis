@@ -7,6 +7,22 @@ import time
 from sync import DataSync
 
 
+def _run_worker(batch_size, notice_keys, query, start_id, end_id, progress_counter):
+	syncer = DataSync(batch_size)
+	syncer.notice_keys = notice_keys
+	syncer.query = query
+	syncer.sync_mongo_to_postgres(
+		mongo_collection=syncer.mongo_bid,
+		psql_table="bid",
+		psql_pk=("bidntceno", "bidntceord", "bidprccorpbizrno"),
+		mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
+		preprocess=syncer.preprocess_bid,
+		start_id=start_id,
+		end_id=end_id,
+		progress_counter=progress_counter
+	)
+
+
 class ParallelBidSync:
 	def __init__(self, num_workers, batch_size):
 		self.num_workers = num_workers
@@ -94,17 +110,15 @@ class ParallelBidSync:
 			self._log(f"  -> Worker {i + 1}/{self.num_workers}: range {points[i]}…{points[i + 1]}")
 			start_id, end_id = points[i], points[i + 1]
 			p = Process(
-				target=self.syncer.sync_mongo_to_postgres,
-				kwargs={
-					"mongo_collection": self.mongo_bid,
-					"psql_table": "bid",
-					"psql_pk": ("bidntceno", "bidntceord", "bidprccorpbizrno"),
-					"mongo_unique_keys": ("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
-					"preprocess": self.syncer.preprocess_bid,
-					"start_id": start_id,
-					"end_id": end_id,
-					"progress_counter": progress_counter,
-				}
+				target=_run_worker,
+				args=(
+					self.syncer.batch_size,
+					self.syncer.notice_keys,
+					self.query,
+					start_id,
+					end_id,
+					progress_counter,
+				)
 			)
 			p.start()
 			processes.append(p)
