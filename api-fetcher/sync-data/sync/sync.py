@@ -15,8 +15,8 @@ class DataSync:
 		self.mongo_server, self.mongo_client = init_mongodb()
 		self.mongo_db = self.mongo_client.get_database("gfcon_raw")
 
-		self.psql_server, self.psql_conn = init_psql()
-		self.psql_cur = self.psql_conn.cursor()
+		# self.psql_server, self.psql_conn = init_psql()
+		# self.psql_cur = self.psql_conn.cursor()
 
 		self.mongo_default = self.mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사조회")
 		self.mongo_bssAmt = self.mongo_db.get_collection("입찰공고정보서비스.입찰공고목록정보에대한공사기초금액조회")
@@ -120,6 +120,9 @@ class DataSync:
 		        각 Mongo 문서를 PostgreSQL row 형식의 dict로 변환하는 사용자 정의 함수입니다.
 		        제공되지 않으면 기본 transform_document()가 사용됩니다.
 		"""
+
+		server, conn = init_psql()
+		self.psql_cur = conn.cursor()
 
 		find_query = {"is_synced": {"$ne": True}}
 		if start_id and end_id:
