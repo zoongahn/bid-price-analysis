@@ -1,3 +1,5 @@
+import cProfile
+import pstats
 from typing import Optional, Callable
 from bson import ObjectId
 import os
@@ -102,7 +104,8 @@ class DataSync:
 	                           preprocess: Optional[Callable[[dict], dict]] = None,
 	                           start_id: ObjectId | None = None,
 	                           end_id: ObjectId | None = None,
-	                           progress_counter=None
+	                           progress_counter=None,
+	                           max_docs: int | None = None
 	                           ):
 		"""
 		Parameters:
@@ -127,6 +130,7 @@ class DataSync:
 
 		server, conn = init_psql()
 		self.psql_conn = conn
+		conn.autocommit = True
 		self.psql_cur = conn.cursor()
 
 		find_query = {"is_synced": {"$ne": True}}
@@ -166,7 +170,6 @@ class DataSync:
 				if progress_counter:
 					with progress_counter.get_lock():
 						progress_counter.value += flushed_count
-
 
 				buffer.clear()
 				synced_keys.clear()
@@ -334,4 +337,3 @@ def main():
 
 if __name__ == "__main__":
 	main()
-

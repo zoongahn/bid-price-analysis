@@ -31,6 +31,7 @@ class ParallelBidSync:
 		self.syncer = DataSync(batch_size)
 		self.mongo_bid = self.syncer.mongo_bid
 		psql_server, psql_conn = init_psql()
+		psql_conn.autocommit = True
 		psql_cur = psql_conn.cursor()
 		psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
 		# DataSync 인스턴스 내부에 notice_keys 생성
@@ -43,6 +44,7 @@ class ParallelBidSync:
 		print(f"[ParallelBidSync] {message}")
 
 	def get_split_points(self) -> list[ObjectId]:
+
 		# 1) 전체 문서 수
 		total = self.total_docs
 		num = self.num_workers
@@ -174,4 +176,3 @@ if __name__ == "__main__":
 
 	parallel_bid_sync = ParallelBidSync(num_workers=get_cpu_count() * 2, batch_size=10000)
 	parallel_bid_sync.run(split_point_ids)
-
