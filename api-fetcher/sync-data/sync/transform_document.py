@@ -22,15 +22,11 @@ _TYPE_CONVERTERS = {
 }
 
 
-def transform_document(psql_conn,
+def transform_document(psql_columns_meta: dict[str, str],
                        table_name: str,
                        doc: dict[str, Any],
                        field_aliases: list[tuple[str, str]] = None,
                        ) -> dict[str, Any]:
-	if psql_conn is not None:
-		psql_columns = PostgresMeta(psql_conn).get_column_types(table_name)
-
-	"""Mongo raw → Postgres ready dict (컬럼명 = notice 테이블 실제 칼럼)"""
 	# ① 몽고 키를 전부 소문자로 만들어 Postgres 컬럼과 맞춘다
 	lowercase_doc = {k.lower(): v for k, v in doc.items() if k != "_id"}
 
@@ -41,7 +37,7 @@ def transform_document(psql_conn,
 
 	transformed: dict[str, Any] = {}
 
-	for col, pg_type in psql_columns.items():
+	for col, pg_type in psql_columns_meta.items():
 		raw_val = lowercase_doc.get(col)
 
 		# 빈 문자열·하이픈·공백 → NULL

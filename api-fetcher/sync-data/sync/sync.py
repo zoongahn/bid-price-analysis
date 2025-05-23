@@ -73,7 +73,7 @@ class DataSync:
 
 		cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
 
-		def transform_with_merge(doc: dict) -> dict:
+		def transform_with_merge(psql_columns_meta: dict[str, str], doc: dict) -> dict:
 			bid_no = doc["bidNtceNo"]
 			bid_ord = doc["bidNtceOrd"]
 
@@ -81,7 +81,7 @@ class DataSync:
 			doc_bid = self.mongo_bid.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, WIN_PROJECTION) or {}
 
 			merged = {**doc, **doc_bssAmt, **doc_bid}
-			row_dict = transform_document(self.psql_conn, "notice", merged, None)
+			row_dict = transform_document(psql_columns_meta, "notice", merged, None)
 			row_dict.pop("_id", None)
 
 			return row_dict
@@ -101,7 +101,7 @@ class DataSync:
 	                           psql_pk: tuple[str, ...],
 	                           mongo_unique_keys: tuple[str, ...],
 	                           field_aliases: list[tuple[str, str]] | None = None,
-	                           preprocess: Optional[Callable[[dict], dict]] = None,
+	                           preprocess: Optional[Callable[[dict, dict], dict]] = None,
 	                           start_id: ObjectId | None = None,
 	                           end_id: ObjectId | None = None,
 	                           progress_counter=None,
@@ -148,16 +148,21 @@ class DataSync:
 		synced_keys: list[tuple] = []
 
 		CURSOR_BATCH_SIZE = 1000
-		cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(CURSOR_BATCH_SIZE)
+
+		if progress_counter:
+			cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(CURSOR_BATCH_SIZE)
+		else:
+			cursor = mongo_collection.find(find_query).batch_size(CURSOR_BATCH_SIZE)
+
 		iterator = tqdm(cursor, total=total) if progress_counter is None else cursor
 		for doc in iterator:
 			# 별도 함수가 파라미터로 전달되었는지?
 			if preprocess:
-				row_dict = preprocess(doc)
+				row_dict = preprocess(meta, doc)
 				if row_dict is None:
 					continue
 			else:
-				row_dict = transform_document(self.psql_conn, psql_table, doc, field_aliases=field_aliases)
+				row_dict = transform_document(meta, psql_table, doc, field_aliases=field_aliases)
 				row_dict.pop("_id", None)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
@@ -271,8 +276,8 @@ class DataSync:
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
-	def preprocess_bid(self, doc: dict) -> dict | None:
-		row_dict = transform_document(self.psql_conn, "bid", doc, None)
+	def preprocess_bid(self, psql_columns_meta: dict[str, str], doc: dict) -> dict | None:
+		row_dict = transform_document(psql_columns_meta, "bid", doc, None)
 		row_dict.pop("_id", None)
 
 		# 외래키 관계 확인: notice에 존재하는 공고번호인지?
