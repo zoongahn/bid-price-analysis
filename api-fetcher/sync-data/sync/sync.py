@@ -50,14 +50,13 @@ class DataSync:
 		rows.clear()
 		return l
 
-	def _mark_synced(self, collection, key_list: list[tuple], key_fields: tuple[str, ...]):
-		ops = []
-		for keys in key_list:
-			query = dict(zip(key_fields, keys))
-			ops.append(UpdateOne(query, {"$set": {"is_synced": True}}))
-
-		if ops:
-			collection.bulk_write(ops, ordered=False)
+	def _mark_synced(self, collection, synced_ids: list[ObjectId]):
+		if not synced_ids:
+			return
+		collection.update_many(
+			{"_id": {"$in": synced_ids}},
+			{"$set": {"is_synced": True}}
+		)
 
 	def sync_notice(self):
 		WIN_FIELDS = [
@@ -99,7 +98,6 @@ class DataSync:
 	                           mongo_collection,
 	                           psql_table: str,
 	                           psql_pk: tuple[str, ...],
-	                           mongo_unique_keys: tuple[str, ...],
 	                           field_aliases: list[tuple[str, str]] | None = None,
 	                           preprocess: Optional[Callable[[dict, dict], dict]] = None,
 	                           start_id: ObjectId | None = None,
@@ -145,7 +143,7 @@ class DataSync:
 		print(f"🔄 [{psql_table}] 총 {total:,} 건 동기화 시작 (batch={self.batch_size})")
 
 		buffer: list[tuple] = []
-		synced_keys: list[tuple] = []
+		synced_ids: list[ObjectId] = []
 
 		CURSOR_BATCH_SIZE = 1000
 
@@ -166,22 +164,22 @@ class DataSync:
 				row_dict.pop("_id", None)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
-			synced_keys.append(tuple(doc[field] for field in mongo_unique_keys))
+			synced_ids.append(doc["_id"])
 
 			if len(buffer) >= self.batch_size:
 				flushed_count = self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
-				self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
+				self._mark_synced(mongo_collection, synced_ids)
 
 				if progress_counter:
 					with progress_counter.get_lock():
 						progress_counter.value += flushed_count
 
 				buffer.clear()
-				synced_keys.clear()
+				synced_ids.clear()
 
 		if buffer:
 			flushed_count = self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
-			self._mark_synced(mongo_collection, synced_keys, mongo_unique_keys)
+			self._mark_synced(mongo_collection, synced_ids)
 
 			if progress_counter:
 				with progress_counter.get_lock():
@@ -250,7 +248,6 @@ class DataSync:
 					mongo_collection=self.mongo_reserve_price,
 					psql_table="reserve_price_range",
 					psql_pk=("bidntceno", "bidntceord", "range_no"),
-					mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "compnoRsrvtnPrceSno"),
 					field_aliases=[("range_no", "compnoRsrvtnPrceSno")]
 				)
 			case "company":
@@ -258,7 +255,6 @@ class DataSync:
 					mongo_collection=self.mongo_company,
 					psql_table="company",
 					psql_pk=("bizno",),
-					mongo_unique_keys=("bizno",)
 				)
 			case "bid":
 				self.psql_cur.execute("SELECT bidntceno, bidntceord FROM notice;")
@@ -268,7 +264,6 @@ class DataSync:
 					mongo_collection=self.mongo_bid,
 					psql_table="bid",
 					psql_pk=("bidntceno", "bidntceord", "bidprccorpbizrno"),
-					mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
 					preprocess=self.preprocess_bid
 				)
 				print(f"notice 테이블에 존재하지않는 공고번호 갯수(skip 횟수): {self.total_skip:,}회")
