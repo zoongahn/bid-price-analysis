@@ -143,7 +143,8 @@ class DataSync:
 		buffer: list[tuple] = []
 		synced_keys: list[tuple] = []
 
-		cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(self.batch_size)
+		CURSOR_BATCH_SIZE = 1000
+		cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(CURSOR_BATCH_SIZE)
 		iterator = tqdm(cursor, total=total) if progress_counter is None else cursor
 		for doc in iterator:
 			# 별도 함수가 파라미터로 전달되었는지?
@@ -320,6 +321,17 @@ class DataSync:
 		print(list(missing))
 
 
-if __name__ == "__main__":
+def main():
 	sync = DataSync(batch_size=10000)
+
+	server, conn = init_psql()
+	sync.psql_server = server
+	sync.psql_conn = conn
+	sync.psql_cur = conn.cursor()
+
 	sync.execute("bid")
+
+
+if __name__ == "__main__":
+	main()
+

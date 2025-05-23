@@ -43,45 +43,25 @@ class ParallelBidSync:
 		print(f"[ParallelBidSync] {message}")
 
 	def get_split_points(self) -> list[ObjectId]:
-		self._log(f"Calculating split points for {self.num_workers} workers")
-		num_splits = self.num_workers
-		step = self.total_docs // num_splits
-		ids: list[ObjectId] = []
+		# 1) 전체 문서 수
+		total = self.total_docs
+		num = self.num_workers
+		step = total // num
 
-		cursor = self.mongo_bid.find(self.query, {"_id": 1}).sort("_id", 1)
-
-		for idx, doc in enumerate(cursor):
-			# idx == 0 이면 항상 첫 번째 시작점
-			# 이후엔 idx % step == 0 일 때마다 분할점 추가
-			if idx == 0 or (step and idx % step == 0):
-				ids.append(doc["_id"])
-				# self._log(f"  -> Split point {len(ids) + 1}/{num_splits}: {doc['_id']}")
-
-				# 원하는 개수 채웠다면 루프 종료
-				if len(ids) >= num_splits:
-					break
-
+		# 2) split points
+		ids = []
+		for i in range(num):
+			skip = i * step
+			# skip가 크면 느릴 수 있지만, limit(1)만 읽으므로 full scan보단 낫습니다
+			doc = self.mongo_bid.find(self.query, {"_id": 1}) \
+				.sort("_id", 1) \
+				.skip(skip) \
+				.limit(1) \
+				.next()
+			ids.append(doc["_id"])
+		# sentinel
+		ids.append(ObjectId())
 		return ids
-
-	# def get_split_points(self) -> list[ObjectId]:
-	# 	self._log(f"Calculating split points for {self.num_workers} workers")
-	# 	num_splits = self.num_workers
-	# 	pipeline = [
-	# 		{"$match": self.query},
-	# 		{"$bucketAuto": {
-	# 			"groupBy": "$_id",
-	# 			"buckets": num_splits,
-	# 			# output 필드는 count만 받아도 충분
-	# 			"output": {"count": {"$sum": 1}}
-	# 		}}
-	# 	]
-	# 	buckets = list(self.mongo_bid.aggregate(pipeline))
-	# 	ids = [b["_id"]["min"] for b in buckets]
-	# 	# 마지막 bucket의 max를 sentinel 처럼 추가
-	# 	ids.append(buckets[-1]["_id"]["max"])
-	#
-	# 	self._log(f"Split points calculated ({len(ids)} points): {ids}")
-	# 	return ids
 
 	def run(self, split_point_ids: list[str] | None = None):
 		"""
@@ -192,6 +172,6 @@ if __name__ == "__main__":
 		"6805330f88c2e927260c9350",
 	]
 
-	parallel_bid_sync = ParallelBidSync(num_workers=get_cpu_count() * 2, batch_size=100)
+	parallel_bid_sync = ParallelBidSync(num_workers=get_cpu_count() * 2, batch_size=10000)
 	parallel_bid_sync.run(split_point_ids)
 
