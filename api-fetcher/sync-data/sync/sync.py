@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Optional, Callable
 from bson import ObjectId
 
@@ -143,25 +144,22 @@ class DataSync:
 		# 몽고디비 find로 한 묶음에 가져올 doc 갯수
 		CURSOR_BATCH_SIZE = 1000
 
-		# 병렬 동기화인지?
-		if progress_counter:
-			cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(CURSOR_BATCH_SIZE)
-		else:
-			cursor = mongo_collection.find(find_query).batch_size(CURSOR_BATCH_SIZE)
+		cursor = mongo_collection.find(find_query).batch_size(CURSOR_BATCH_SIZE)
 
 		# 변환 함수 분기
 		# 별도함수가 파라미터로 전달되었는지?
 		if preprocess:
-			def _convert(doc):
-				row = preprocess(meta, doc, field_aliases)
+			_convert = partial(preprocess, meta, field_aliases=field_aliases)
 		else:
-			def _convert(doc):
-				row = transform_document(meta, doc, field_aliases)
-				row.pop("_id", None)
-				return row
+			_convert = partial(transform_document, meta, field_aliases=field_aliases)
 
 		doc_count = 1
-		iterator = tqdm(cursor, total=total) if progress_counter is None else cursor
+		iterator = tqdm(cursor, total=total, bar_format=(
+			"{l_bar}{bar} "
+			"{n:,}/{total:,} 건  "  # 현재값/전체값에 쉼표 포맷 적용
+			"[{elapsed}<{remaining}, "
+			"{rate_fmt}{postfix}]"
+		)) if progress_counter is None else cursor
 		for doc in iterator:
 
 			if doc_count % 100000 == 0:
