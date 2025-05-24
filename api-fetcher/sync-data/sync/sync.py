@@ -1,8 +1,5 @@
-import cProfile
-import pstats
 from typing import Optional, Callable
 from bson import ObjectId
-import os
 
 from common.init_mongodb import init_mongodb
 from common.init_psql import init_psql
@@ -10,7 +7,6 @@ from utils.postgres_meta import PostgresMeta
 from transform_document import transform_document
 from tqdm import tqdm
 from psycopg2.extras import execute_values
-from pymongo import UpdateOne
 
 
 class DataSync:
@@ -72,7 +68,8 @@ class DataSync:
 
 		cursor = self.mongo_default.find({"is_synced": {"$ne": True}}, {"_id": 0})
 
-		def transform_with_merge(psql_columns_meta: dict[str, str], doc: dict) -> dict:
+		def transform_with_merge(psql_columns_meta: dict[str, str], doc: dict,
+		                         field_aliases: list[tuple[str, str]] | None = None) -> dict:
 			bid_no = doc["bidNtceNo"]
 			bid_ord = doc["bidNtceOrd"]
 
@@ -80,7 +77,7 @@ class DataSync:
 			doc_bid = self.mongo_bid.find_one({"bidNtceNo": bid_no, "bidNtceOrd": bid_ord}, WIN_PROJECTION) or {}
 
 			merged = {**doc, **doc_bssAmt, **doc_bid}
-			row_dict = transform_document(psql_columns_meta, "notice", merged, None)
+			row_dict = transform_document(psql_columns_meta, merged, field_aliases)
 			row_dict.pop("_id", None)
 
 			return row_dict
@@ -89,7 +86,6 @@ class DataSync:
 			mongo_collection=self.mongo_default,
 			psql_table="notice",
 			psql_pk=("bidntceno", "bidntceord"),
-			mongo_unique_keys=("bidNtceNo", "bidNtceOrd"),
 			preprocess=transform_with_merge
 		)
 
@@ -99,7 +95,7 @@ class DataSync:
 	                           psql_table: str,
 	                           psql_pk: tuple[str, ...],
 	                           field_aliases: list[tuple[str, str]] | None = None,
-	                           preprocess: Optional[Callable[[dict, dict], dict]] = None,
+	                           preprocess: Optional[Callable[[dict, dict, list], dict]] = None,
 	                           start_id: ObjectId | None = None,
 	                           end_id: ObjectId | None = None,
 	                           progress_counter=None,
@@ -128,7 +124,6 @@ class DataSync:
 
 		server, conn = init_psql()
 		self.psql_conn = conn
-		conn.autocommit = True
 		self.psql_cur = conn.cursor()
 
 		find_query = {"is_synced": {"$ne": True}}
@@ -145,26 +140,41 @@ class DataSync:
 		buffer: list[tuple] = []
 		synced_ids: list[ObjectId] = []
 
+		# 몽고디비 find로 한 묶음에 가져올 doc 갯수
 		CURSOR_BATCH_SIZE = 1000
 
+		# 병렬 동기화인지?
 		if progress_counter:
 			cursor = mongo_collection.find(find_query).sort("_id", 1).batch_size(CURSOR_BATCH_SIZE)
 		else:
 			cursor = mongo_collection.find(find_query).batch_size(CURSOR_BATCH_SIZE)
 
+		# 변환 함수 분기
+		# 별도함수가 파라미터로 전달되었는지?
+		if preprocess:
+			def _convert(doc):
+				row = preprocess(meta, doc, field_aliases)
+		else:
+			def _convert(doc):
+				row = transform_document(meta, doc, field_aliases)
+				row.pop("_id", None)
+				return row
+
+		doc_count = 1
 		iterator = tqdm(cursor, total=total) if progress_counter is None else cursor
 		for doc in iterator:
-			# 별도 함수가 파라미터로 전달되었는지?
-			if preprocess:
-				row_dict = preprocess(meta, doc)
-				if row_dict is None:
-					continue
-			else:
-				row_dict = transform_document(meta, psql_table, doc, field_aliases=field_aliases)
-				row_dict.pop("_id", None)
+
+			if doc_count % 100000 == 0:
+				self.psql_cur.close()
+				self.psql_conn.close()
+				psql_server, self.psql_conn = init_psql()
+				self.psql_cur = self.psql_conn.cursor()
+
+			row_dict = _convert(doc)
 
 			buffer.append(tuple(row_dict.get(col) for col in psql_columns))
 			synced_ids.append(doc["_id"])
+			doc_count += 1
 
 			if len(buffer) >= self.batch_size:
 				flushed_count = self._flush(buffer, psql_table, psql_columns, placeholder, f"({', '.join(psql_pk)})")
@@ -271,8 +281,9 @@ class DataSync:
 			case _:
 				raise ValueError(f"Invalid sync_table: {sync_table}")
 
-	def preprocess_bid(self, psql_columns_meta: dict[str, str], doc: dict) -> dict | None:
-		row_dict = transform_document(psql_columns_meta, "bid", doc, None)
+	def preprocess_bid(self, psql_columns_meta: dict[str, str], doc: dict,
+	                   field_aliases: list[tuple[str, str]] | None = None) -> dict | None:
+		row_dict = transform_document(psql_columns_meta, doc, field_aliases)
 		row_dict.pop("_id", None)
 
 		# 외래키 관계 확인: notice에 존재하는 공고번호인지?

@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import psycopg2
 from sshtunnel import SSHTunnelForwarder
+import socket
 
 load_dotenv()
 
@@ -13,13 +14,22 @@ POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", 5432))
 
 
 def connect_psql_local():
-	return psycopg2.connect(
+	conn = psycopg2.connect(
 		host=POSTGRES_HOST,
 		port=POSTGRES_PORT,
 		dbname=POSTGRES_DB,
 		user=POSTGRES_USER,
 		password=POSTGRES_PASSWORD,
+		keepalives=1,
 	)
+
+	sock = conn.cursor().connection.socket
+	sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 10)
+
+	return conn
 
 
 def connect_psql_via_ssh():

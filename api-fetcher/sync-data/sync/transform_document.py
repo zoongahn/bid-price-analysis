@@ -23,9 +23,8 @@ _TYPE_CONVERTERS = {
 
 
 def transform_document(psql_columns_meta: dict[str, str],
-                       table_name: str,
                        doc: dict[str, Any],
-                       field_aliases: list[tuple[str, str]] = None,
+                       field_aliases: list[tuple[str, str]] | None = None,
                        ) -> dict[str, Any]:
 	# ① 몽고 키를 전부 소문자로 만들어 Postgres 컬럼과 맞춘다
 	lowercase_doc = {k.lower(): v for k, v in doc.items() if k != "_id"}

@@ -17,7 +17,6 @@ def _run_worker(batch_size, notice_keys, query, start_id, end_id, progress_count
 		mongo_collection=syncer.mongo_bid,
 		psql_table="bid",
 		psql_pk=("bidntceno", "bidntceord", "bidprccorpbizrno"),
-		mongo_unique_keys=("bidNtceNo", "bidNtceOrd", "bidprcCorpBizrno"),
 		preprocess=syncer.preprocess_bid,
 		start_id=start_id,
 		end_id=end_id,
