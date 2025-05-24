@@ -48,6 +48,7 @@ def connect_psql_via_ssh():
 		remote_bind_address=(POSTGRES_HOST, POSTGRES_PORT),
 	)
 
+
 	server.start()
 
 	LOCAL_BIND_PORT = server.local_bind_port
