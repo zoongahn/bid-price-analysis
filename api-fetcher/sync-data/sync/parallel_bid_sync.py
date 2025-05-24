@@ -173,5 +173,6 @@ if __name__ == "__main__":
 		"6805330f88c2e927260c9350",
 	]
 
-	parallel_bid_sync = ParallelBidSync(num_workers=get_cpu_count() * 2, batch_size=10000)
-	parallel_bid_sync.run(split_point_ids)
+	num_workers = get_cpu_count() * 2
+	parallel_bid_sync = ParallelBidSync(num_workers=num_workers, batch_size=1000)
+	parallel_bid_sync.run(split_point_ids[:num_workers])
