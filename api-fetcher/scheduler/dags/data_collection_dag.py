@@ -1,0 +1,466 @@
+"""
+나라장터 공공데이터 수집 DAG
+- 매일 새벽 2시(KST) 실행 → 전날 데이터 수집
+- 예: 12/16 02:00 실행 → 12/15 데이터 수집
+- 모든 API를 병렬로 수집하여 MongoDB에 저장
+
+수집 대상 API:
+[입찰공고정보서비스]
+1. 입찰공고목록정보에대한공사조회 (operation_number=1)
+2. 입찰공고목록정보에대한용역조회 (operation_number=2)
+3. 입찰공고목록정보에대한외자조회 (operation_number=3)
+4. 입찰공고목록정보에대한물품조회 (operation_number=4)
+5. 입찰공고목록정보에대한물품기초금액조회 (operation_number=5)
+6. 입찰공고목록정보에대한공사기초금액조회 (operation_number=6)
+7. 입찰공고목록정보에대한용역기초금액조회 (operation_number=7)
+8. 입찰공고목록정보에대한면허제한정보조회 (operation_number=15)
+9. 입찰공고목록정보에대한참가가능지역정보조회 (operation_number=16)
+[사용자정보서비스]
+11. 수요기관정보조회 (operation_number=1)
+12. 조달업체기본정보 (operation_number=2)
+13. 조달업체업종정보조회 (operation_number=3)
+
+[낙찰정보서비스]
+14. 개찰결과공사예비가격상세목록조회 (operation_number=10)
+
+[공공데이터개방표준서비스]
+15. 데이터셋개방표준에따른낙찰정보-물품 (operation_number=2, bsns_div_cd=1)
+16. 데이터셋개방표준에따른낙찰정보-외자 (operation_number=2, bsns_div_cd=2)
+17. 데이터셋개방표준에따른낙찰정보-공사 (operation_number=2, bsns_div_cd=3)
+18. 데이터셋개방표준에따른낙찰정보-용역 (operation_number=2, bsns_div_cd=5)
+"""
+
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.utils.dates import days_ago
+import sys
+import os
+
+# 프로젝트 루트를 Python path에 추가
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
+
+from fetch_data.src.data_collector import DataCollector
+
+
+# =============================================================================
+# 수집 함수 정의
+# =============================================================================
+
+def get_target_date(context) -> str:
+    """
+    실행일 기준 전날 날짜 반환
+
+    Airflow 스케줄 특성상 execution_date는 인터벌 시작 시점이므로,
+    KST 02:00 실행 시 전날 데이터를 수집하려면 +1일 필요
+    예: KST 12/16 02:00 실행 → execution_date=12/14 → +1일 → 12/15 수집
+    """
+    execution_date = context["execution_date"]
+    target_date = execution_date + timedelta(days=1)
+    return target_date.strftime("%Y-%m-%d")
+
+
+def collect_notice_cnstwk(**context):
+    """[공고] 입찰공고목록정보에대한공사조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=1,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-공사] 수집 완료: {date_str}")
+
+
+def collect_notice_bssamt(**context):
+    """[공고] 입찰공고목록정보에대한공사기초금액조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=6,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-기초금액] 수집 완료: {date_str}")
+
+
+def collect_notice_license(**context):
+    """[공고] 입찰공고목록정보에대한면허제한정보조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=15,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-면허제한] 수집 완료: {date_str}")
+
+
+def collect_bid_data_goods(**context):
+    """[투찰] 데이터셋개방표준에따른낙찰정보 - 물품"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="공공데이터개방표준서비스",
+        operation_number=2,
+        start_date=date_str,
+        end_date=date_str,
+        bsns_div_cd=1,  # 물품
+    )
+    collector.execute()
+    print(f"[투찰-낙찰정보-물품] 수집 완료: {date_str}")
+
+
+def collect_bid_data_foreign(**context):
+    """[투찰] 데이터셋개방표준에따른낙찰정보 - 외자"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="공공데이터개방표준서비스",
+        operation_number=2,
+        start_date=date_str,
+        end_date=date_str,
+        bsns_div_cd=2,  # 외자
+    )
+    collector.execute()
+    print(f"[투찰-낙찰정보-외자] 수집 완료: {date_str}")
+
+
+def collect_bid_data_cnstwk(**context):
+    """[투찰] 데이터셋개방표준에따른낙찰정보 - 공사"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="공공데이터개방표준서비스",
+        operation_number=2,
+        start_date=date_str,
+        end_date=date_str,
+        bsns_div_cd=3,  # 공사
+    )
+    collector.execute()
+    print(f"[투찰-낙찰정보-공사] 수집 완료: {date_str}")
+
+
+def collect_bid_data_service(**context):
+    """[투찰] 데이터셋개방표준에따른낙찰정보 - 용역"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="공공데이터개방표준서비스",
+        operation_number=2,
+        start_date=date_str,
+        end_date=date_str,
+        bsns_div_cd=5,  # 용역
+    )
+    collector.execute()
+    print(f"[투찰-낙찰정보-용역] 수집 완료: {date_str}")
+
+
+def collect_company_basic(**context):
+    """[업체] 조달업체기본정보"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="사용자정보서비스",
+        operation_number=2,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[업체-기본정보] 수집 완료: {date_str}")
+
+
+def collect_company_industry(**context):
+    """[업체] 조달업체업종정보조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="사용자정보서비스",
+        operation_number=3,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[업체-업종정보] 수집 완료: {date_str}")
+
+
+def collect_institution(**context):
+    """[수요기관] 수요기관정보조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="사용자정보서비스",
+        operation_number=1,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[수요기관] 수집 완료: {date_str}")
+
+
+def collect_reserve_price(**context):
+    """[예비가격] 개찰결과공사예비가격상세목록조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=10,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[예비가격-공사] 수집 완료: {date_str}")
+
+
+def collect_notice_service(**context):
+    """[공고] 입찰공고목록정보에대한용역조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=2,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-용역] 수집 완료: {date_str}")
+
+
+def collect_notice_foreign(**context):
+    """[공고] 입찰공고목록정보에대한외자조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=3,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-외자] 수집 완료: {date_str}")
+
+
+def collect_notice_goods(**context):
+    """[공고] 입찰공고목록정보에대한물품조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=4,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-물품] 수집 완료: {date_str}")
+
+
+def collect_notice_goods_bssamt(**context):
+    """[공고] 입찰공고목록정보에대한물품기초금액조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=5,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-물품기초금액] 수집 완료: {date_str}")
+
+
+def collect_notice_service_bssamt(**context):
+    """[공고] 입찰공고목록정보에대한용역기초금액조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=7,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-용역기초금액] 수집 완료: {date_str}")
+
+
+def collect_notice_region(**context):
+    """[공고] 입찰공고목록정보에대한참가가능지역정보조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="입찰공고정보서비스",
+        operation_number=16,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[공고-참가가능지역] 수집 완료: {date_str}")
+
+
+# =============================================================================
+# DAG 정의
+# =============================================================================
+
+default_args = {
+    "owner": "airflow",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
+
+with DAG(
+    "collect_g2b_data_daily",
+    default_args=default_args,
+    description="나라장터 공공데이터 일일 수집 (전체 API 병렬 실행)",
+    schedule_interval="0 17 * * *",  # UTC 17:00 = KST 02:00 (매일 새벽 2시)
+    start_date=days_ago(1),
+    catchup=False,
+    tags=["data-collection", "mongodb", "g2b"],
+) as dag:
+
+    # =========================================================================
+    # Task 정의 - 모든 API 병렬 수집
+    # =========================================================================
+
+    # 공고 관련
+    task_notice_cnstwk = PythonOperator(
+        task_id="collect_notice_cnstwk",
+        python_callable=collect_notice_cnstwk,
+    )
+
+    task_notice_bssamt = PythonOperator(
+        task_id="collect_notice_bssamt",
+        python_callable=collect_notice_bssamt,
+    )
+
+    task_notice_license = PythonOperator(
+        task_id="collect_notice_license",
+        python_callable=collect_notice_license,
+    )
+
+    # 투찰/낙찰 관련 (4가지 사업구분별)
+    task_bid_data_goods = PythonOperator(
+        task_id="collect_bid_data_goods",
+        python_callable=collect_bid_data_goods,
+    )
+
+    task_bid_data_foreign = PythonOperator(
+        task_id="collect_bid_data_foreign",
+        python_callable=collect_bid_data_foreign,
+    )
+
+    task_bid_data_cnstwk = PythonOperator(
+        task_id="collect_bid_data_cnstwk",
+        python_callable=collect_bid_data_cnstwk,
+    )
+
+    task_bid_data_service = PythonOperator(
+        task_id="collect_bid_data_service",
+        python_callable=collect_bid_data_service,
+    )
+
+    # 업체 관련
+    task_company_basic = PythonOperator(
+        task_id="collect_company_basic",
+        python_callable=collect_company_basic,
+    )
+
+    task_company_industry = PythonOperator(
+        task_id="collect_company_industry",
+        python_callable=collect_company_industry,
+    )
+
+    # 수요기관
+    task_institution = PythonOperator(
+        task_id="collect_institution",
+        python_callable=collect_institution,
+    )
+
+    # 예비가격
+    task_reserve_price = PythonOperator(
+        task_id="collect_reserve_price",
+        python_callable=collect_reserve_price,
+    )
+
+    # 공고 - 용역
+    task_notice_service = PythonOperator(
+        task_id="collect_notice_service",
+        python_callable=collect_notice_service,
+    )
+
+    # 공고 - 외자
+    task_notice_foreign = PythonOperator(
+        task_id="collect_notice_foreign",
+        python_callable=collect_notice_foreign,
+    )
+
+    # 공고 - 물품
+    task_notice_goods = PythonOperator(
+        task_id="collect_notice_goods",
+        python_callable=collect_notice_goods,
+    )
+
+    # 공고 - 물품 기초금액
+    task_notice_goods_bssamt = PythonOperator(
+        task_id="collect_notice_goods_bssamt",
+        python_callable=collect_notice_goods_bssamt,
+    )
+
+    # 공고 - 용역 기초금액
+    task_notice_service_bssamt = PythonOperator(
+        task_id="collect_notice_service_bssamt",
+        python_callable=collect_notice_service_bssamt,
+    )
+
+    # 공고 - 참가가능지역정보
+    task_notice_region = PythonOperator(
+        task_id="collect_notice_region",
+        python_callable=collect_notice_region,
+    )
+
+    # =========================================================================
+    # 동기화 DAG 트리거 - 모든 수집 완료 후 실행
+    # =========================================================================
+
+    trigger_sync = TriggerDagRunOperator(
+        task_id="trigger_sync_dag",
+        trigger_dag_id="sync_g2b_data_daily",
+        wait_for_completion=False,  # 동기화 완료를 기다리지 않음
+    )
+
+    # =========================================================================
+    # Task 의존성 - 수집 완료 후 동기화 트리거
+    # =========================================================================
+    # 모든 수집 Task가 완료되면 동기화 DAG를 트리거합니다.
+
+    [
+        # 입찰공고정보서비스
+        task_notice_cnstwk,
+        task_notice_service,
+        task_notice_foreign,
+        task_notice_goods,
+        task_notice_bssamt,
+        task_notice_goods_bssamt,
+        task_notice_service_bssamt,
+        task_notice_license,
+        task_notice_region,
+        # 사용자정보서비스
+        task_company_basic,
+        task_company_industry,
+        task_institution,
+        # 낙찰정보서비스
+        task_reserve_price,
+        # 공공데이터개방표준서비스 (4가지 사업구분)
+        task_bid_data_goods,
+        task_bid_data_foreign,
+        task_bid_data_cnstwk,
+        task_bid_data_service,
+    ] >> trigger_sync

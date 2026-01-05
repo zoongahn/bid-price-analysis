@@ -21,13 +21,20 @@ def connect_psql_local():
 		user=POSTGRES_USER,
 		password=POSTGRES_PASSWORD,
 		keepalives=1,
+		keepalives_idle=60,
+		keepalives_interval=10,
+		keepalives_count=10,
 	)
 
-	sock = conn.cursor().connection.socket
-	sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
-	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
-	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 10)
+	# socket 설정은 connection 파라미터로 대체
+	# try:
+	# 	sock = conn.cursor().connection.socket
+	# 	sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+	# 	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+	# 	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+	# 	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 10)
+	# except AttributeError:
+	# 	pass  # psycopg2 버전에 따라 socket 속성이 없을 수 있음
 
 	return conn
 

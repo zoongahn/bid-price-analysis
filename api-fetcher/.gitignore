@@ -1,7 +1,41 @@
+# Python
 .venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
 .env
-fetch_record/
-date_record/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.claude/
+
+# Logs & Data
 logs/
+data/
+api_info/data/
+fetch_record/
+
+# Large/Temp files
+*.dump
+*.png
+*.jpg
+*.jpeg
+empty_bizrno_data.json
+
+# Project specific
+.claude/
+.server_connections.md
 fetch-data/test/
+
+# OS
+.DS_Store
+
+# Keep shell scripts
 !scripts/*.sh
