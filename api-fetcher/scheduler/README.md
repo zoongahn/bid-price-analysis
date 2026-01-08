@@ -29,7 +29,7 @@ scheduler/
 |------|-----|
 | DAG ID | `collect_g2b_data_daily` |
 | 스케줄 | `0 17 * * *` (UTC 17:00 = KST 02:00, 매일 새벽 2시) |
-| 실행 방식 | 17개 Task 병렬 실행 → 완료 후 sync DAG 트리거 |
+| 실행 방식 | 20개 Task 병렬 실행 → bid 완료 후 누락 company 수집 → sync DAG 트리거 |
 | Executor | SequentialExecutor |
 | catchup | False (과거 미실행분 실행 안함) |
 
@@ -59,11 +59,14 @@ scheduler/
 | collect_company_basic | 조달업체기본정보 | 2 | `chgDt` |
 | collect_company_industry | 조달업체업종정보조회 | 3 | `systmChgDt` |
 
-### 낙찰정보서비스 (1개 Task)
+### 낙찰정보서비스 (4개 Task)
 
-| Task ID | 오퍼레이션 | op# | 수집 기준 필드 |
-|---------|-----------|-----|---------------|
-| collect_reserve_price | 개찰결과공사예비가격상세목록조회 | 10 | `inptDt` |
+| Task ID | 오퍼레이션 | op# | 대분류 | 수집 기준 필드 |
+|---------|-----------|-----|--------|---------------|
+| collect_reserve_price_goods | 개찰결과물품예비가격상세목록조회 | 9 | 물품 | `inptDt` |
+| collect_reserve_price_cnstwk | 개찰결과공사예비가격상세목록조회 | 10 | 공사 | `inptDt` |
+| collect_reserve_price_service | 개찰결과용역예비가격상세목록조회 | 11 | 용역 | `inptDt` |
+| collect_reserve_price_foreign | 개찰결과외자예비가격상세목록조회 | 12 | 외자 | `inptDt` |
 
 ### 공공데이터개방표준서비스 - 투찰/낙찰정보 (4개 Task)
 
@@ -75,6 +78,14 @@ scheduler/
 | collect_bid_data_service | 데이터셋개방표준에따른낙찰정보 | 2 | 5 (용역) | `...낙찰정보-용역` |
 
 > **Note**: 투찰/낙찰정보는 사업구분코드(bsns_div_cd)별로 분리하여 4개 컬렉션에 저장됩니다.
+
+### 누락 company 증분 수집 (1개 Task)
+
+| Task ID | 설명 | 의존성 |
+|---------|------|--------|
+| collect_missing_companies | bid에 있지만 company에 없는 사업자등록번호 수집 | bid 4개 수집 완료 후 실행 |
+
+> **Note**: FK 위반 방지를 위해 bid 수집 완료 후 누락된 company를 사전 수집합니다.
 
 ### 후속 처리 (1개 Task)
 
@@ -112,7 +123,10 @@ scheduler/
 
 | 컬렉션 | 수집 기준 필드 | 날짜 형식 | 조회 예시 |
 |--------|---------------|-----------|----------|
+| 낙찰정보서비스.개찰결과물품예비가격상세목록조회 | `inptDt` | `YYYY-MM-DD HH:MM:SS` | `{inptDt: {$regex: "^2025-12-13"}}` |
 | 낙찰정보서비스.개찰결과공사예비가격상세목록조회 | `inptDt` | `YYYY-MM-DD HH:MM:SS` | `{inptDt: {$regex: "^2025-12-13"}}` |
+| 낙찰정보서비스.개찰결과용역예비가격상세목록조회 | `inptDt` | `YYYY-MM-DD HH:MM:SS` | `{inptDt: {$regex: "^2025-12-13"}}` |
+| 낙찰정보서비스.개찰결과외자예비가격상세목록조회 | `inptDt` | `YYYY-MM-DD HH:MM:SS` | `{inptDt: {$regex: "^2025-12-13"}}` |
 
 ### 공공데이터개방표준서비스 (사업구분별 분리)
 

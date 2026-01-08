@@ -16,7 +16,8 @@ fetch_data/
 │   ├── params_builder.py    # API 요청 파라미터 생성
 │   ├── mongo_writer.py      # MongoDB upsert 처리
 │   ├── record_writer.py     # 수집 기록 파일 관리
-│   └── api_info.py          # API 메타정보 조회 (gfcon.api_list)
+│   ├── api_info.py          # API 메타정보 조회 (gfcon.api_list)
+│   └── missing_company_collector.py  # 누락 company 증분 수집
 ├── py_scripts/              # 유틸리티 스크립트
 └── test*.py                 # 테스트 파일
 ```
@@ -215,6 +216,49 @@ collector.collect_notice_by_NtceNo(["20240101001", "20240101002"])
 collector.collect_company_by_bizno(["1234567890", "0987654321"])
 ```
 
+### 병렬 수집 스크립트
+
+대량의 과거 데이터를 수집할 때는 연도별로 screen 세션을 생성하여 병렬 수집합니다.
+
+```bash
+cd /data/dev/bid-price-analysis/api-fetcher
+
+# 조달업체업종정보 연도별 병렬 수집 (2005~2025)
+./scripts/collect_industry_by_year.sh
+
+# 낙찰정보 (물품/외자/용역) 연도별 병렬 수집 (2010~2025)
+./scripts/collect_bid_by_year.sh
+
+# 예비가격상세 (물품/공사/용역/외자) 연도별 병렬 수집
+./scripts/collect_reserve_price_detail_by_year.sh
+```
+
+**스크립트 목록:**
+
+| 스크립트 | 서비스 | 오퍼레이션 | 설명 |
+|---------|--------|-----------|------|
+| `collect_industry_by_year.sh` | 사용자정보서비스 | 3 (조달업체업종정보) | 2005~2025 연도별 병렬 |
+| `collect_bid_by_year.sh` | 공공데이터개방표준서비스 | 2 (낙찰정보) | 물품/외자/용역별 연도별 병렬 |
+| `collect_reserve_price_detail_by_year.sh` | 낙찰정보서비스 | 9,10,11,12 (예비가격상세) | 물품/공사/용역/외자별 연도별 병렬 |
+
+**세션 관리:**
+
+```bash
+# 실행 중인 세션 확인
+screen -ls | grep FETCH-
+
+# 특정 세션 접속
+screen -r FETCH-예비가격-공사_2025
+
+# 세션에서 나오기: Ctrl+A, D
+
+# 특정 세션 종료
+screen -X -S FETCH-예비가격-공사_2025 quit
+
+# 모든 FETCH 세션 종료
+./scripts/kill_fetch_screens.sh
+```
+
 ---
 
 ## ⚙️ 핵심 컴포넌트
@@ -279,7 +323,28 @@ HTTP 통신을 담당하며, 나라장터 API의 특수한 SSL 환경을 처리�
 - 연결 오류 시 자동 재시도 (10초 간격)
 - JSON 디코드 실패 시 재시도
 
-### 4. MongoWriter (mongo_writer.py)
+### 4. MissingCompanyCollector (missing_company_collector.py)
+
+bid 수집 후 누락된 company를 증분 수집하는 모듈입니다.
+
+**기능:**
+- bid 4개 컬렉션에서 미동기화(`is_synced=False`) 문서의 `bidprcCorpBizrno` 추출
+- company 컬렉션에 없는 사업자등록번호 식별
+- 누락된 사업자등록번호로 조달업체기본정보 API 호출하여 수집
+
+**사용:**
+```python
+from fetch_data.src.missing_company_collector import collect_missing_companies
+
+# bid 수집 후 누락 company 수집
+collected_count = collect_missing_companies()
+```
+
+**DAG 연동:**
+- `data_collection_dag.py`에서 bid 4개 수집 완료 후 자동 실행
+- FK 위반 방지를 위한 사전 수집
+
+### 5. MongoWriter (mongo_writer.py)
 
 MongoDB에 데이터를 저장하며 중복을 처리합니다.
 
@@ -369,9 +434,10 @@ collector.collect_company_by_bizno(["사업자번호1", "사업자번호2"])
 **공고종류:**
 | 코드 | 공고종류 | 비고 |
 |------|---------|------|
-| 공사 | 건설공사 | 현재 수집 중 |
-| 용역 | 서비스 용역 | 확장 예정 |
-| 물품 | 물품 구매 | 확장 예정 |
+| 공사 | 건설공사 | 수집 중 |
+| 용역 | 서비스 용역 | 수집 중 |
+| 물품 | 물품 구매 | 수집 중 |
+| 외자 | 외자 구매 | 수집 중 |
 | 전체 | 모든 공고종류 | 일부 API만 해당 |
 
 ---
@@ -401,7 +467,10 @@ collector.collect_company_by_bizno(["사업자번호1", "사업자번호2"])
 | 서비스 | 오퍼레이션 | MongoDB 컬렉션 | PostgreSQL | 공고종류 |
 |--------|-----------|----------------|------------|---------|
 | 입찰공고정보서비스 | 입찰공고목록정보에대한면허제한정보조회 | `입찰공고정보서비스.입찰공고목록정보에대한면허제한정보조회` | `notice_industry_type` | 전체 |
+| 낙찰정보서비스 | 개찰결과물품예비가격상세목록조회 | `낙찰정보서비스.개찰결과물품예비가격상세목록조회` | `reserve_price_range` | 물품 |
 | 낙찰정보서비스 | 개찰결과공사예비가격상세목록조회 | `낙찰정보서비스.개찰결과공사예비가격상세목록조회` | `reserve_price_range` | 공사 |
+| 낙찰정보서비스 | 개찰결과용역예비가격상세목록조회 | `낙찰정보서비스.개찰결과용역예비가격상세목록조회` | `reserve_price_range` | 용역 |
+| 낙찰정보서비스 | 개찰결과외자예비가격상세목록조회 | `낙찰정보서비스.개찰결과외자예비가격상세목록조회` | `reserve_price_range` | 외자 |
 
 #### 3. 업체 (Company)
 
@@ -426,31 +495,6 @@ collector.collect_company_by_bizno(["사업자번호1", "사업자번호2"])
 | 서비스 | 오퍼레이션 | MongoDB 컬렉션 | PostgreSQL | 공고종류 |
 |--------|-----------|----------------|------------|---------|
 | 사용자정보서비스 | 수요기관정보조회 | `사용자정보서비스.수요기관정보조회` | `institution` | - |
-
----
-
-### 확장 예정 API (용역/물품)
-
-#### 공고 (Notice) - 용역
-
-| 서비스 | 오퍼레이션 | MongoDB 컬렉션 | PostgreSQL | 상태 |
-|--------|-----------|----------------|------------|------|
-| 입찰공고정보서비스 | 입찰공고목록정보에대한용역조회 | `입찰공고정보서비스.입찰공고목록정보에대한용역조회` | `notice` | 예정 |
-| 입찰공고정보서비스 | 입찰공고목록정보에대한용역기초금액조회 | `입찰공고정보서비스.입찰공고목록정보에대한용역기초금액조회` | `notice` (병합) | 예정 |
-
-#### 공고 (Notice) - 물품
-
-| 서비스 | 오퍼레이션 | MongoDB 컬렉션 | PostgreSQL | 상태 |
-|--------|-----------|----------------|------------|------|
-| 입찰공고정보서비스 | 입찰공고목록정보에대한물품조회 | `입찰공고정보서비스.입찰공고목록정보에대한물품조회` | `notice` | 예정 |
-| 입찰공고정보서비스 | 입찰공고목록정보에대한물품기초금액조회 | `입찰공고정보서비스.입찰공고목록정보에대한물품기초금액조회` | `notice` (병합) | 예정 |
-
-#### 예비가격 - 용역/물품
-
-| 서비스 | 오퍼레이션 | MongoDB 컬렉션 | PostgreSQL | 상태 |
-|--------|-----------|----------------|------------|------|
-| 낙찰정보서비스 | 개찰결과용역예비가격상세목록조회 | `낙찰정보서비스.개찰결과용역예비가격상세목록조회` | `reserve_price_range` | 예정 |
-| 낙찰정보서비스 | 개찰결과물품예비가격상세목록조회 | `낙찰정보서비스.개찰결과물품예비가격상세목록조회` | `reserve_price_range` | 예정 |
 
 ---
 
@@ -536,7 +580,7 @@ collector.collect_company_by_bizno(["사업자번호1", "사업자번호2"])
 | 사용자정보서비스.조달업체기본정보 | `inqryBgnDt`, `inqryEndDt` | 검색기준일시 |
 | 사용자정보서비스.조달업체업종정보조회 | `inqryBgnDt`, `inqryEndDt` | 검색기준일시 |
 | 사용자정보서비스.수요기관정보조회 | `inqryBgnDt`, `inqryEndDt` | 검색기준일시 |
-| 낙찰정보서비스.예비가격상세 | `inqryBgnDt`, `inqryEndDt` | 조회일시 |
+| 낙찰정보서비스.예비가격상세 (물품/공사/용역/외자) | `inqryBgnDt`, `inqryEndDt` | 조회일시 |
 | **공공데이터개방표준서비스.낙찰정보-{사업구분}** | `opengBgnDt`, `opengEndDt` | **개찰일시** (1주일 제한) |
 
 ### inqryDiv 파라미터와 대응 응답 필드
@@ -571,7 +615,7 @@ API별로 `inqryDiv` 값의 의미와 대응되는 응답 필드가 다릅니다
 | 사용자정보서비스.조달업체기본정보 | `chgDt` | `YYYY-MM-DD HH:MM:SS` | 변경일시 (inqryDiv=2) |
 | 사용자정보서비스.조달업체업종정보조회 | `systmChgDt` | `YYYY-MM-DD HH:MM:SS` | 시스템변경일시 (inqryDiv=3) |
 | 사용자정보서비스.수요기관정보조회 | `chgDt` | `YYYY-MM-DD HH:MM:SS` | 변경일시 (inqryDiv=2) |
-| 낙찰정보서비스.예비가격상세 | `inptDt` | `YYYY-MM-DD HH:MM:SS` | 입력일시 |
+| 낙찰정보서비스.예비가격상세 (물품/공사/용역/외자) | `inptDt` | `YYYY-MM-DD HH:MM:SS` | 입력일시 |
 | **공공데이터개방표준서비스.낙찰정보-공사** | `opengDate` | `YYYY-MM-DD` | 개찰일자 |
 | **공공데이터개방표준서비스.낙찰정보-물품** | `opengDate` | `YYYY-MM-DD` | 개찰일자 |
 | **공공데이터개방표준서비스.낙찰정보-외자** | `opengDate` | `YYYY-MM-DD` | 개찰일자 |

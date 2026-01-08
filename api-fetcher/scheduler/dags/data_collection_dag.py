@@ -21,13 +21,16 @@
 13. 조달업체업종정보조회 (operation_number=3)
 
 [낙찰정보서비스]
-14. 개찰결과공사예비가격상세목록조회 (operation_number=10)
+14. 개찰결과물품예비가격상세목록조회 (operation_number=9)
+15. 개찰결과공사예비가격상세목록조회 (operation_number=10)
+16. 개찰결과용역예비가격상세목록조회 (operation_number=11)
+17. 개찰결과외자예비가격상세목록조회 (operation_number=12)
 
 [공공데이터개방표준서비스]
-15. 데이터셋개방표준에따른낙찰정보-물품 (operation_number=2, bsns_div_cd=1)
-16. 데이터셋개방표준에따른낙찰정보-외자 (operation_number=2, bsns_div_cd=2)
-17. 데이터셋개방표준에따른낙찰정보-공사 (operation_number=2, bsns_div_cd=3)
-18. 데이터셋개방표준에따른낙찰정보-용역 (operation_number=2, bsns_div_cd=5)
+18. 데이터셋개방표준에따른낙찰정보-물품 (operation_number=2, bsns_div_cd=1)
+19. 데이터셋개방표준에따른낙찰정보-외자 (operation_number=2, bsns_div_cd=2)
+20. 데이터셋개방표준에따른낙찰정보-공사 (operation_number=2, bsns_div_cd=3)
+21. 데이터셋개방표준에따른낙찰정보-용역 (operation_number=2, bsns_div_cd=5)
 """
 
 from datetime import datetime, timedelta
@@ -42,6 +45,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 
 from fetch_data.src.data_collector import DataCollector
+from fetch_data.src.missing_company_collector import collect_missing_companies
 
 
 # =============================================================================
@@ -205,7 +209,21 @@ def collect_institution(**context):
     print(f"[수요기관] 수집 완료: {date_str}")
 
 
-def collect_reserve_price(**context):
+def collect_reserve_price_goods(**context):
+    """[예비가격] 개찰결과물품예비가격상세목록조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=9,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[예비가격-물품] 수집 완료: {date_str}")
+
+
+def collect_reserve_price_cnstwk(**context):
     """[예비가격] 개찰결과공사예비가격상세목록조회"""
     date_str = get_target_date(context)
 
@@ -217,6 +235,34 @@ def collect_reserve_price(**context):
     )
     collector.execute()
     print(f"[예비가격-공사] 수집 완료: {date_str}")
+
+
+def collect_reserve_price_service(**context):
+    """[예비가격] 개찰결과용역예비가격상세목록조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=11,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[예비가격-용역] 수집 완료: {date_str}")
+
+
+def collect_reserve_price_foreign(**context):
+    """[예비가격] 개찰결과외자예비가격상세목록조회"""
+    date_str = get_target_date(context)
+
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=12,
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[예비가격-외자] 수집 완료: {date_str}")
 
 
 def collect_notice_service(**context):
@@ -384,10 +430,25 @@ with DAG(
         python_callable=collect_institution,
     )
 
-    # 예비가격
-    task_reserve_price = PythonOperator(
-        task_id="collect_reserve_price",
-        python_callable=collect_reserve_price,
+    # 예비가격 (4가지 공종별)
+    task_reserve_price_goods = PythonOperator(
+        task_id="collect_reserve_price_goods",
+        python_callable=collect_reserve_price_goods,
+    )
+
+    task_reserve_price_cnstwk = PythonOperator(
+        task_id="collect_reserve_price_cnstwk",
+        python_callable=collect_reserve_price_cnstwk,
+    )
+
+    task_reserve_price_service = PythonOperator(
+        task_id="collect_reserve_price_service",
+        python_callable=collect_reserve_price_service,
+    )
+
+    task_reserve_price_foreign = PythonOperator(
+        task_id="collect_reserve_price_foreign",
+        python_callable=collect_reserve_price_foreign,
     )
 
     # 공고 - 용역
@@ -427,6 +488,15 @@ with DAG(
     )
 
     # =========================================================================
+    # 누락 company 증분 수집 - bid 수집 완료 후 실행
+    # =========================================================================
+
+    task_collect_missing_companies = PythonOperator(
+        task_id="collect_missing_companies",
+        python_callable=collect_missing_companies,
+    )
+
+    # =========================================================================
     # 동기화 DAG 트리거 - 모든 수집 완료 후 실행
     # =========================================================================
 
@@ -437,10 +507,20 @@ with DAG(
     )
 
     # =========================================================================
-    # Task 의존성 - 수집 완료 후 동기화 트리거
+    # Task 의존성
     # =========================================================================
-    # 모든 수집 Task가 완료되면 동기화 DAG를 트리거합니다.
+    # 1. bid 4개 수집 완료 → 누락 company 수집
+    # 2. 모든 수집 완료 → 동기화 DAG 트리거
 
+    # bid 수집 완료 후 누락 company 수집
+    [
+        task_bid_data_goods,
+        task_bid_data_foreign,
+        task_bid_data_cnstwk,
+        task_bid_data_service,
+    ] >> task_collect_missing_companies
+
+    # 모든 수집 완료 후 동기화 DAG 트리거
     [
         # 입찰공고정보서비스
         task_notice_cnstwk,
@@ -456,11 +536,11 @@ with DAG(
         task_company_basic,
         task_company_industry,
         task_institution,
-        # 낙찰정보서비스
-        task_reserve_price,
-        # 공공데이터개방표준서비스 (4가지 사업구분)
-        task_bid_data_goods,
-        task_bid_data_foreign,
-        task_bid_data_cnstwk,
-        task_bid_data_service,
+        # 낙찰정보서비스 (예비가격 4종)
+        task_reserve_price_goods,
+        task_reserve_price_cnstwk,
+        task_reserve_price_service,
+        task_reserve_price_foreign,
+        # 누락 company 수집 (bid 수집 후 실행)
+        task_collect_missing_companies,
     ] >> trigger_sync
