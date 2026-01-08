@@ -1,8 +1,9 @@
 """
-notice 테이블의 bid_count, answer_rate 컬럼 후처리 UPDATE
+notice 테이블의 bid_count, answer_rate, min_winning_price 컬럼 후처리 UPDATE
 
 bid_count: 공고번호 기준 참여업체수
 answer_rate: 사정률 (예정가격 / 기초금액 * 100)
+min_winning_price: 낙찰하한가
 
 계산 공식:
     bid_count = (SELECT COUNT(*) FROM bid WHERE bidntceno, bidntceord 일치)
@@ -33,7 +34,7 @@ DATA_SCHEMA = os.getenv("POSTGRES_SCHEMA", "data")
 
 def update_notice_stats(schema: str = None):
     """
-    notice 테이블의 bid_count, answer_rate 컬럼 UPDATE
+    notice 테이블의 bid_count, answer_rate, min_winning_price 컬럼 UPDATE
 
     Args:
         schema: PostgreSQL 스키마명 (기본값: 환경변수 또는 'data')
@@ -115,19 +116,54 @@ def update_notice_stats(schema: str = None):
         updated_answer_rate = cursor.rowcount
         logger.info(f"answer_rate 업데이트: {updated_answer_rate:,}건")
 
+        # Step 4: min_winning_price 계산 UPDATE
+        # 낙찰하한가 = (예정가격 - A값) * (낙찰하한율 / 100) + A값
+        # bssamtpurcnstcst가 있는 경우 GREATEST(위 값, bssamtpurcnstcst * answer_rate / 100 * 0.98)
+        logger.info("min_winning_price 계산 중...")
+
+        update_min_winning_price_sql = f"""
+            UPDATE {schema}.notice n
+            SET min_winning_price = (
+                SELECT
+                    CASE
+                        WHEN n.bssamtpurcnstcst IS NULL THEN
+                            -- bssamtpurcnstcst가 NULL인 경우
+                            (r.plnprc - COALESCE(n.a_value, 0)) * (COALESCE(n.sucsfbidlwltrate, 87.745) / 100) + COALESCE(n.a_value, 0)
+                        ELSE
+                            -- bssamtpurcnstcst가 존재하는 경우: 두 값 중 큰 값
+                            GREATEST(
+                                (r.plnprc - COALESCE(n.a_value, 0)) * (COALESCE(n.sucsfbidlwltrate, 87.745) / 100) + COALESCE(n.a_value, 0),
+                                n.bssamtpurcnstcst * (COALESCE(n.answer_rate, 100) / 100) * 0.98
+                            )
+                    END
+                FROM {schema}.reserve_price_range r
+                WHERE r.bidntceno = n.bidntceno
+                  AND r.bidntceord = n.bidntceord
+                LIMIT 1
+            )
+            WHERE n.sucsfbidlwltrate IS NOT NULL
+        """
+        cursor.execute(update_min_winning_price_sql)
+        updated_min_winning_price = cursor.rowcount
+        logger.info(f"min_winning_price 업데이트: {updated_min_winning_price:,}건")
+
         conn.commit()
 
-        # Step 4: 결과 확인
+        # Step 5: 결과 확인
         cursor.execute(f"""
             SELECT
                 COUNT(*) as total,
                 COUNT(bid_count) as has_bid_count,
                 COUNT(answer_rate) as has_answer_rate,
+                COUNT(min_winning_price) as has_min_winning_price,
                 AVG(bid_count) FILTER (WHERE bid_count > 0) as avg_bid_count,
                 MAX(bid_count) as max_bid_count,
                 AVG(answer_rate) as avg_answer_rate,
                 MIN(answer_rate) as min_answer_rate,
-                MAX(answer_rate) as max_answer_rate
+                MAX(answer_rate) as max_answer_rate,
+                AVG(min_winning_price) as avg_min_winning_price,
+                MIN(min_winning_price) as min_min_winning_price,
+                MAX(min_winning_price) as max_min_winning_price
             FROM {schema}.notice
         """)
         result = cursor.fetchone()
@@ -135,14 +171,19 @@ def update_notice_stats(schema: str = None):
         logger.info(f"  - 총 공고: {result[0]:,}건")
         logger.info(f"  - bid_count 계산됨: {result[1]:,}건")
         logger.info(f"  - answer_rate 계산됨: {result[2]:,}건")
-        if result[3]:
-            logger.info(f"  - 평균 참여업체수: {result[3]:.2f}개")
-        logger.info(f"  - 최대 참여업체수: {result[4]:,}개")
+        logger.info(f"  - min_winning_price 계산됨: {result[3]:,}건")
+        if result[4]:
+            logger.info(f"  - 평균 참여업체수: {result[4]:.2f}개")
         if result[5]:
-            logger.info(f"  - 평균 사정률: {result[5]:.5f}")
-            logger.info(f"  - 사정률 범위: {result[6]:.5f} ~ {result[7]:.5f}")
+            logger.info(f"  - 최대 참여업체수: {result[5]:,}개")
+        if result[6]:
+            logger.info(f"  - 평균 사정률: {result[6]:.5f}")
+            logger.info(f"  - 사정률 범위: {result[7]:.5f} ~ {result[8]:.5f}")
+        if result[9]:
+            logger.info(f"  - 평균 낙찰하한가: {result[9]:,.0f}원")
+            logger.info(f"  - 낙찰하한가 범위: {result[10]:,.0f} ~ {result[11]:,.0f}원")
 
-        # Step 5: 참여업체수 분포 확인
+        # Step 6: 참여업체수 분포 확인
         cursor.execute(f"""
             SELECT
                 CASE
@@ -164,7 +205,7 @@ def update_notice_stats(schema: str = None):
         for range_name, count in distribution:
             logger.info(f"  - {range_name}개: {count:,}건")
 
-        return updated_bid_count, updated_answer_rate
+        return updated_bid_count, updated_answer_rate, updated_min_winning_price
 
     except Exception as e:
         logger.error(f"오류 발생: {e}", exc_info=True)
@@ -183,7 +224,7 @@ def update_notice_stats(schema: str = None):
 def main():
     """메인 함수"""
     logger.info("=" * 80)
-    logger.info("notice 테이블 bid_count, answer_rate 후처리 시작")
+    logger.info("notice 테이블 bid_count, answer_rate, min_winning_price 후처리 시작")
     logger.info("=" * 80)
 
     update_notice_stats()

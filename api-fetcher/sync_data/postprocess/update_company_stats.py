@@ -60,20 +60,7 @@ def update_company_stats(schema: str = None):
         logger.info(f"company 테이블 현황: 총 {stats[0]:,}건")
         logger.info(f"  - has_bid=TRUE: {stats[1]:,}건, FALSE: {stats[2]:,}건, NULL: {stats[3]:,}건")
 
-        # Step 2: has_bid 계산 UPDATE
-        logger.info("has_bid 계산 중...")
-        update_has_bid_sql = f"""
-            UPDATE {schema}.company c
-            SET has_bid = EXISTS (
-                SELECT 1 FROM {schema}.bid b
-                WHERE b.bidprccorpbizrno = c.bizno
-            )
-        """
-        cursor.execute(update_has_bid_sql)
-        updated_has_bid = cursor.rowcount
-        logger.info(f"has_bid 업데이트: {updated_has_bid:,}건")
-
-        # Step 3: bid_count 계산 UPDATE
+        # Step 2: bid_count 계산 UPDATE (먼저 계산)
         logger.info("bid_count 계산 중...")
         update_bid_count_sql = f"""
             UPDATE {schema}.company c
@@ -86,6 +73,16 @@ def update_company_stats(schema: str = None):
         cursor.execute(update_bid_count_sql)
         updated_bid_count = cursor.rowcount
         logger.info(f"bid_count 업데이트: {updated_bid_count:,}건")
+
+        # Step 3: has_bid 계산 UPDATE (bid_count 결과 활용)
+        logger.info("has_bid 계산 중 (bid_count > 0 활용)...")
+        update_has_bid_sql = f"""
+            UPDATE {schema}.company
+            SET has_bid = (bid_count > 0)
+        """
+        cursor.execute(update_has_bid_sql)
+        updated_has_bid = cursor.rowcount
+        logger.info(f"has_bid 업데이트: {updated_has_bid:,}건")
 
         conn.commit()
 

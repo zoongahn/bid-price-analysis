@@ -251,3 +251,4 @@ win_synced_at,PostgreSQL,낙찰정보동기화시점,낙찰정보 동기화 시�
 a_value,PostgreSQL (계산),A값,"안전관리비+보험료 합산 (GENERATED COLUMN)",
 bid_count,PostgreSQL (후처리),참여업체수,참여업체수 (후처리 계산),
 answer_rate,PostgreSQL (후처리),사정률,사정률 (후처리 계산),
+min_winning_price,PostgreSQL (후처리),낙찰하한가,낙찰하한가 (후처리 계산),

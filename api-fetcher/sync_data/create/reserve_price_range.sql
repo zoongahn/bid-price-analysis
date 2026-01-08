@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS reserve_price_range
     /* 구간 번호(1‑15, 수의계약 시 빈 문자열) : compnoRsrvtnPrceSno */
     range_no                 TEXT     NOT NULL,
 
+    /* 업종구분(공사/물품/용역/외자) */
+    bsns_div                 VARCHAR(10) NOT NULL,
+
     /* ── 금액/지표 ───────────────────── */
     plnprc                   NUMERIC,     -- 예정가격(플랜가격)
     bssamt                   NUMERIC,     -- 기초금액
@@ -42,6 +45,7 @@ COMMENT ON TABLE reserve_price_range IS '공고별 복수예정가격(예가) �
 COMMENT ON COLUMN reserve_price_range.bidNtceNo IS '입찰공고번호';
 COMMENT ON COLUMN reserve_price_range.bidNtceOrd IS '입찰공고차수';
 COMMENT ON COLUMN reserve_price_range.range_no IS '예가 구간 번호(1‑15, 수의계약 시 빈 문자열)';
+COMMENT ON COLUMN reserve_price_range.bsns_div IS '업종구분(공사/물품/용역/외자)';
 COMMENT ON COLUMN reserve_price_range.plnprc IS '예정가격(플랜가격)';
 COMMENT ON COLUMN reserve_price_range.bssamt IS '기초금액';
 COMMENT ON COLUMN reserve_price_range.bsisPlnprc IS '기초예정가격';

@@ -195,10 +195,10 @@ CREATE TABLE IF NOT EXISTS notice (
     pqappldocrcptmthdnm TEXT, -- PQ신청서접수방법명 [공사,용역]
     pqevalyn TEXT, -- PQ심사여부 [공사,용역]
     prdctclsfclmtyn TEXT, -- 물품분류제한여부 [물품,외자,용역]
-    prdctqty TEXT, -- 물품수량 [물품,외자]
+    prdctqty NUMERIC, -- 물품수량 [물품,외자]
     prdctspecnm TEXT, -- 물품규격명 [물품,외자]
     prdctunit TEXT, -- 물품단위 [물품,외자]
-    prdctuprc TEXT, -- 물품단가 [물품,외자]
+    prdctuprc NUMERIC, -- 물품단가 [물품,외자]
     purchsobjprdctlist TEXT, -- 구매대상물품목록 [물품,외자,용역]
     rgndutyjntcontrctrt NUMERIC, -- 지역의무공동도급비율 [공사,용역]
     techabltevlrt NUMERIC, -- [물품,외자]
@@ -229,7 +229,7 @@ CREATE TABLE IF NOT EXISTS notice (
     usefulamt BIGINT,                         -- 가용금액
     inptdt TIMESTAMP,                         -- 입력일시
     bidprcecalclayn CHAR(1),                  -- 입찰가격산식A여부
-    bssamtpurcnstcst TEXT,                    -- 기초금액순공사비
+    bssamtpurcnstcst NUMERIC,                 -- 기초금액순공사비
     qltymngcst BIGINT,                        -- 품질관리비 (공사)
     qltymngcstaobjyn CHAR(1),                 -- 품질관리비A적용대상여부 (공사)
     industsftyhelthMngcst BIGINT,             -- 산업안전보건관리비 (물품)
@@ -276,6 +276,7 @@ CREATE TABLE IF NOT EXISTS notice (
     ) STORED,                                 -- A값 (안전관리비+보험료 합산)
     bid_count INTEGER,                        -- 참여업체수 (후처리)
     answer_rate NUMERIC,                      -- 사정률 (후처리)
+    min_winning_price NUMERIC,                -- 낙찰하한가 (후처리)
 
     -- ========================================
     -- 제약 조건

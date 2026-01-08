@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS notice (
     jntcontrctDutyRgnNm1 TEXT,
     jntcontrctDutyRgnNm2 TEXT,
     jntcontrctDutyRgnNm3 TEXT,
-    rgnDutyJntcontrctRt TEXT,
+    rgnDutyJntcontrctRt NUMERIC,
     dtlsBidYn TEXT,
     bidPrtcptLmtYn TEXT,
     prearngPrceDcsnMthdNm TEXT,
@@ -65,9 +65,9 @@ CREATE TABLE IF NOT EXISTS notice (
     presmptPrce BIGINT,
     govsplyAmt BIGINT,
     aplBssCntnts TEXT,
-    indstrytyEvlRt TEXT,
+    indstrytyEvlRt NUMERIC,
     mainCnsttyNm TEXT,
-    mainCnsttyCnstwkPrearngAmt TEXT,
+    mainCnsttyCnstwkPrearngAmt NUMERIC,
     incntvRgnNm1 TEXT,
     incntvRgnNm2 TEXT,
     incntvRgnNm3 TEXT,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS notice (
     bidNtceDtlUrl TEXT,
     bidNtceUrl TEXT,
     bidPrtcptFeePaymntYn TEXT,
-    bidPrtcptFee TEXT,
+    bidPrtcptFee NUMERIC,
     bidGrntymnyPaymntYn TEXT,
     crdtrNm TEXT,
     cmmnSpldmdCnum TEXT,
@@ -99,15 +99,15 @@ CREATE TABLE IF NOT EXISTS notice (
     subsiCnsttyNm7 TEXT,
     subsiCnsttyNm8 TEXT,
     subsiCnsttyNm9 TEXT,
-    subsiCnsttyIndstrytyEvlRt1 TEXT,
-    subsiCnsttyIndstrytyEvlRt2 TEXT,
-    subsiCnsttyIndstrytyEvlRt3 TEXT,
-    subsiCnsttyIndstrytyEvlRt4 TEXT,
-    subsiCnsttyIndstrytyEvlRt5 TEXT,
-    subsiCnsttyIndstrytyEvlRt6 TEXT,
-    subsiCnsttyIndstrytyEvlRt7 TEXT,
-    subsiCnsttyIndstrytyEvlRt8 TEXT,
-    subsiCnsttyIndstrytyEvlRt9 TEXT,
+    subsiCnsttyIndstrytyEvlRt1 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt2 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt3 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt4 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt5 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt6 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt7 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt8 NUMERIC,
+    subsiCnsttyIndstrytyEvlRt9 NUMERIC,
     cmmnSpldmdMethdCd TEXT,
     cmmnSpldmdMethdNm TEXT,
     stdNtceDocUrl TEXT,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS notice (
     pqEvalYn TEXT,
     ntceDscrptYn TEXT,
     rsrvtnPrceReMkngMthdNm TEXT,
-    mainCnsttyPresmptPrce TEXT,
+    mainCnsttyPresmptPrce NUMERIC,
     orderPlanUntyNo TEXT,
     sucsfbidLwltRate NUMERIC,
     rgstDt TIMESTAMP,
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS notice (
     usefulAmt BIGINT,
     inptDt TIMESTAMP,
     bidPrceCalclAYn CHAR(1),
-    bssAmtPurcnstcst TEXT,
+    bssAmtPurcnstcst NUMERIC,
     qltyMngcst BIGINT,
     qltyMngcstAObjYn CHAR(1),
     smkpAmt BIGINT,                   -- 표준시장단가금액
@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS notice (
     ) STORED,
     bid_count INTEGER,                -- 참여업체수 (후처리)
     answer_rate NUMERIC,              -- 사정률 (후처리)
+    min_winning_price NUMERIC,        -- 낙찰하한가 (후처리)
 
     PRIMARY KEY (bidNtceNo, bidNtceOrd)
 );
@@ -579,3 +580,4 @@ COMMENT ON COLUMN notice.win_synced_at IS '낙찰정보 동기화 시점';
 COMMENT ON COLUMN notice.a_value IS 'A값 (GENERATED: 안전관리비+보험료 등 합산)';
 COMMENT ON COLUMN notice.bid_count IS '참여업체수 (후처리 계산)';
 COMMENT ON COLUMN notice.answer_rate IS '사정률 (후처리 계산)';
+COMMENT ON COLUMN notice.min_winning_price IS '낙찰하한가 (후처리 계산)';

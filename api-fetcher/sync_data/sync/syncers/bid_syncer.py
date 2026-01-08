@@ -42,19 +42,23 @@ class BidSyncer(BaseSyncer):
     - Level 2: ObjectId 범위 분할 병렬 (N개 워커/카테고리)
     """
 
-    def __init__(self, num_workers: int | str = "auto", schema: str = None, test_limit: int = None):
+    def __init__(
+        self,
+        total_workers: int = 32,
+        schema: str = None,
+        test_limit: int = None,
+        categories: list = None,
+    ):
         """
         Args:
-            num_workers: 카테고리 내 워커 수 ("auto" = CPU_COUNT * 2)
+            total_workers: 총 워커 수 (기본값: 32, 건수 비율에 따라 카테고리별 동적 배분)
             schema: PostgreSQL 스키마명
             test_limit: 테스트 모드 시 카테고리당 최대 동기화 건수 (None = 제한 없음)
+            categories: 동기화할 카테고리 목록 (None = 전체, 예: ["공사"], ["물품", "용역"])
         """
         super().__init__("bid", schema=schema, test_limit=test_limit)
-
-        if num_workers == "auto":
-            self.num_workers = multiprocessing.cpu_count() * 2
-        else:
-            self.num_workers = int(num_workers)
+        self.total_workers = int(total_workers)
+        self.category_filter = categories  # None이면 전체
 
         self.multi_source = self.config.get("multi_source", False)
         self.category_stats = {}
@@ -68,19 +72,34 @@ class BidSyncer(BaseSyncer):
             self._sync_multi_source()
         else:
             # 기존 방식 (하위 호환)
-            strategy = ParallelSyncStrategy(self.num_workers)
+            strategy = ParallelSyncStrategy(self.total_workers)
             strategy.execute(self)
 
         self.print_summary()
 
     def _sync_multi_source(self):
         """4개 카테고리 이중 병렬화 동기화"""
-        categories = self.config.get("categories", [])
+        all_categories = self.config.get("categories", [])
+
+        # 카테고리 필터링 적용
+        if self.category_filter:
+            categories = [
+                cat for cat in all_categories
+                if cat["name"] in self.category_filter
+            ]
+            if not categories:
+                print(f"⚠️ 지정된 카테고리가 없습니다: {self.category_filter}")
+                print(f"   사용 가능한 카테고리: {', '.join(cat['name'] for cat in all_categories)}")
+                return
+        else:
+            categories = all_categories
+
+        filter_msg = f" (필터: {', '.join(self.category_filter)})" if self.category_filter else " (전체)"
 
         print(f"\n{'=' * 80}")
-        print(f"📊 Bid 이중 병렬 동기화 시작 ({len(categories)}개 카테고리)")
+        print(f"📊 Bid 이중 병렬 동기화 시작 ({len(categories)}개 카테고리){filter_msg}")
         print(f"   카테고리: {', '.join(cat['name'] for cat in categories)}")
-        print(f"   카테고리 내 워커: {self.num_workers}개")
+        print(f"   총 워커 수: {self.total_workers}개 (건수 비율에 따라 동적 배분)")
         if self.test_limit:
             print(f"   ⚠️  테스트 모드: 카테고리당 {self.test_limit:,}건 제한")
         print(f"{'=' * 80}\n")
@@ -111,17 +130,59 @@ class BidSyncer(BaseSyncer):
             print("✅ 동기화할 데이터가 없습니다.")
             return
 
-        # 3) 공유 상태
+        # 3) 건수 비율에 따른 워커 수 동적 배분
+        category_workers = self._allocate_workers(category_totals, self.total_workers)
+        print("   📊 워커 배분:")
+        for cat_name, num_workers in category_workers.items():
+            ratio = category_totals[cat_name] / total_docs * 100 if total_docs > 0 else 0
+            print(f"      - {cat_name}: {num_workers}개 워커 ({ratio:.1f}%)")
+        print()
+
+        # 4) 공유 상태
         manager = Manager()
         results = manager.dict()
         progress_counters = {cat["name"]: Value("i", 0) for cat in categories}
 
-        # 4) 카테고리별 프로세스 생성
+        # 5) 카테고리별 split points 미리 계산 (메인 프로세스에서)
+        print("\n   📊 Split points 계산 중...")
+        category_split_points = {}
+        for category in categories:
+            cat_name = category["name"]
+            total = category_totals[cat_name]
+            num_workers = category_workers.get(cat_name, 1)
+
+            if total == 0 or self.test_limit:
+                # 동기화 대상 없거나 테스트 모드면 split points 불필요
+                category_split_points[cat_name] = None
+                continue
+
+            # 문서가 적으면 워커 수 조정
+            effective_workers = min(num_workers, max(1, total // 100))
+
+            if effective_workers <= 1:
+                category_split_points[cat_name] = None
+                continue
+
+            primary_source = self._get_primary_source_from_category(category)
+            coll = self.mongo_db[primary_source["collection_name"]]
+            query = {primary_source["sync_flag"]: {"$ne": True}}
+
+            print(f"   [{cat_name}] split points 계산 시작 ({effective_workers}개 워커, {total:,}건)")
+            split_points = _get_split_points(coll, query, total, effective_workers)
+            category_split_points[cat_name] = split_points
+            print(f"   [{cat_name}] split points 계산 완료: {len(split_points)}개")
+
+        print()
+
+        # 6) 카테고리별 프로세스 생성
         processes = []
         start_time = time.time()
 
         for category in categories:
             cat_name = category["name"]
+            num_workers = category_workers.get(cat_name, 1)
+            split_points = category_split_points.get(cat_name)
+
             p = Process(
                 target=_bid_category_worker,
                 args=(
@@ -129,21 +190,22 @@ class BidSyncer(BaseSyncer):
                     category["merge_sources"],
                     self.schema,
                     self.config["batch_size"],
-                    self.num_workers,
+                    num_workers,  # 동적 배분된 워커 수
                     notice_keys_list,  # list로 전달 (pickle 가능)
                     self.config.get("foreign_key_check"),
                     self.config.get("default_bizrno", "__DEFAULT__"),
                     progress_counters[cat_name],
                     results,
                     self.test_limit,  # 테스트 모드 제한
+                    split_points,  # 미리 계산된 split points
                 )
             )
             p.start()
             processes.append((cat_name, p))
-            self.loggers["application"].info(f"[{cat_name}] 카테고리 워커 시작")
-            print(f"   🚀 [{cat_name}] 카테고리 워커 시작 (PID: {p.pid})")
+            self.loggers["application"].info(f"[{cat_name}] 카테고리 워커 시작 ({num_workers}개 워커)")
+            print(f"   🚀 [{cat_name}] 카테고리 워커 시작 (PID: {p.pid}, 워커: {num_workers}개)")
 
-        # 5) 진행률 모니터링
+        # 7) 진행률 모니터링
         pbar = tqdm(total=total_docs, desc="전체 진행")
         prev_total = 0
 
@@ -163,7 +225,7 @@ class BidSyncer(BaseSyncer):
             for cat_name, p in processes:
                 p.join()
 
-        # 6) 결과 집계
+        # 7) 결과 집계
         elapsed = time.time() - start_time
         print(f"\n⏱️  총 소요 시간: {elapsed:.1f}초")
 
@@ -179,6 +241,52 @@ class BidSyncer(BaseSyncer):
                     f"{stats.get('skipped', 0):,}건 스킵"
                 )
 
+    def _allocate_workers(self, category_totals: dict, total_workers: int) -> dict:
+        """
+        건수 비율에 따라 워커 수를 동적으로 배분
+
+        Args:
+            category_totals: 카테고리별 동기화 대상 건수 {cat_name: count}
+            total_workers: 총 워커 수
+
+        Returns:
+            카테고리별 워커 수 {cat_name: num_workers}
+        """
+        total_docs = sum(category_totals.values())
+        if total_docs == 0:
+            # 건수가 없으면 균등 배분
+            num_categories = len(category_totals)
+            per_category = max(1, total_workers // num_categories)
+            return {cat: per_category for cat in category_totals}
+
+        # 비율에 따라 배분
+        category_workers = {}
+        remaining_workers = total_workers
+
+        # 1단계: 비율에 따른 초기 배분 (최소 1개 보장)
+        for cat_name, count in category_totals.items():
+            if count == 0:
+                category_workers[cat_name] = 1
+            else:
+                ratio = count / total_docs
+                workers = max(1, int(total_workers * ratio))
+                category_workers[cat_name] = workers
+
+        # 2단계: 남은 워커 재배분 (가장 건수 많은 카테고리에 추가)
+        allocated = sum(category_workers.values())
+        remaining = total_workers - allocated
+
+        if remaining > 0:
+            # 건수 기준 내림차순 정렬
+            sorted_cats = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
+            for cat_name, _ in sorted_cats:
+                if remaining <= 0:
+                    break
+                category_workers[cat_name] += 1
+                remaining -= 1
+
+        return category_workers
+
     def _get_primary_source_from_category(self, category: dict) -> dict:
         """카테고리에서 primary source 반환"""
         for source in category["merge_sources"]:
@@ -189,16 +297,22 @@ class BidSyncer(BaseSyncer):
     def print_sync_info(self):
         """동기화 시작 정보 출력"""
         if self.multi_source:
-            categories = self.config.get("categories", [])
+            all_categories = self.config.get("categories", [])
+            if self.category_filter:
+                categories = [cat for cat in all_categories if cat["name"] in self.category_filter]
+                filter_info = f"필터: {', '.join(self.category_filter)}"
+            else:
+                categories = all_categories
+                filter_info = "전체"
+
             info_lines = [
                 f"동기화 정보:",
                 f"  - 대상 스키마: {self.schema}",
                 f"  - 대상 테이블: {self.config['psql_table']}",
                 f"  - Full Name: {self.qualified_table_name}",
                 f"  - 모드: 이중 병렬 (multi_source)",
-                f"  - 카테고리 수: {len(categories)}개",
-                f"  - 카테고리: {', '.join(cat['name'] for cat in categories)}",
-                f"  - 카테고리 내 워커: {self.num_workers}개",
+                f"  - 카테고리: {', '.join(cat['name'] for cat in categories)} ({filter_info})",
+                f"  - 총 워커 수: {self.total_workers}개 (건수 비율 동적 배분)",
                 f"  - Batch Size: {self.config.get('batch_size', 1000):,}",
             ]
         else:
@@ -207,7 +321,7 @@ class BidSyncer(BaseSyncer):
                 f"  - 대상 스키마: {self.schema}",
                 f"  - 대상 테이블: {self.config['psql_table']}",
                 f"  - 모드: 단일 컬렉션 병렬",
-                f"  - 워커 수: {self.num_workers}개",
+                f"  - 워커 수: {self.total_workers}개",
             ]
 
         for line in info_lines:
@@ -256,6 +370,7 @@ def _bid_category_worker(
     progress_counter: Value,
     results: dict,
     test_limit: int = None,
+    split_points: list = None,
 ):
     """
     카테고리별 워커 (Level 1)
@@ -274,6 +389,7 @@ def _bid_category_worker(
         progress_counter: 진행률 카운터
         results: 결과 저장 딕셔너리 (Manager.dict)
         test_limit: 테스트 모드 시 최대 동기화 건수 (None = 제한 없음)
+        split_points: 미리 계산된 split points (None이면 단일 워커로 처리)
     """
     import os
 
@@ -333,9 +449,9 @@ def _bid_category_worker(
     # notice_keys를 set으로 변환
     notice_keys = set(notice_keys_list)
 
-    # 테스트 모드이거나 문서가 적으면 단일 워커로 처리
-    if test_limit or effective_total < 1000:
-        # 단일 워커로 직접 처리 (테스트 모드)
+    # split_points가 없으면 단일 워커로 처리 (테스트 모드 또는 문서가 적은 경우)
+    if not split_points or len(split_points) <= 1:
+        # 단일 워커로 직접 처리
         synced, skipped = _process_bid_range(
             cat_name,
             merge_sources,
@@ -352,11 +468,8 @@ def _bid_category_worker(
         )
         results[cat_name] = {"synced": synced, "skipped": skipped}
     else:
-        # 문서가 적으면 워커 수 조정
-        effective_workers = min(num_workers, max(1, total // 100))
-
-        # ObjectId 분할 포인트 계산
-        split_points = _get_split_points(collection, query, total, effective_workers)
+        # 미리 계산된 split_points 사용
+        effective_workers = len(split_points)
 
         # Level 2: 카테고리 내 병렬 워커 생성
         inner_processes = []
@@ -668,7 +781,7 @@ def _process_bid_range(
 
 def _get_split_points(collection, query: dict, total: int, num_workers: int) -> list:
     """
-    ObjectId 범위를 워커 수만큼 분할
+    ObjectId 범위를 워커 수만큼 분할 (스트리밍 방식 - 메모리 효율적)
 
     Args:
         collection: MongoDB 컬렉션
@@ -682,21 +795,42 @@ def _get_split_points(collection, query: dict, total: int, num_workers: int) -> 
     if total == 0 or num_workers <= 1:
         return [None, None]
 
-    # _id만 가져오기 (인덱스 스캔)
-    cursor = collection.find(query, {"_id": 1}).sort("_id", 1)
-    all_ids = [doc["_id"] for doc in cursor]
-
-    actual_total = len(all_ids)
-    if actual_total == 0:
-        return [None, None]
-
-    # 균등 분할
-    step = max(1, actual_total // num_workers)
+    step = max(1, total // num_workers)
     split_points = []
 
-    for i in range(num_workers):
-        idx = i * step
-        if idx < actual_total:
-            split_points.append(all_ids[idx])
+    print(f"[split_point] 스트리밍 방식으로 분할점 계산 시작 (total={total:,}, step={step:,})", flush=True)
+
+    # 커서로 스트리밍하면서 분할점만 저장 (메모리 효율적)
+    cursor = collection.find(query, {"_id": 1}).sort("_id", 1)
+
+    # 진행률 로그 간격 (1000만건마다 또는 5%마다)
+    log_interval = max(10_000_000, total // 20)
+    last_log = 0
+
+    for i, doc in enumerate(cursor):
+        # 진행률 로그 (1000만건 또는 5%마다)
+        if i - last_log >= log_interval:
+            pct = (i / total) * 100
+            print(f"[split_point] 진행중: {i:,}/{total:,} ({pct:.1f}%) - 분할점 {len(split_points)}/{num_workers}개", flush=True)
+            last_log = i
+
+        if i % step == 0 and len(split_points) < num_workers:
+            oid = doc["_id"]
+            split_points.append(oid)
+            print(f"[split_point] ✓ {len(split_points)}/{num_workers} 분할점 확정 (idx={i:,}) → {oid}", flush=True)
+
+        # 모든 분할점을 찾으면 조기 종료
+        if len(split_points) >= num_workers:
+            cursor.close()
+            break
+
+    print(f"[split_point] 분할점 {len(split_points)}개 확정 완료", flush=True)
+
+    # 재사용 가능하도록 전체 split points 출력
+    print(f"[split_point] === 재사용 가능한 split_points ===", flush=True)
+    print(f"split_points = [", flush=True)
+    for i, sp in enumerate(split_points):
+        print(f"    ObjectId('{sp}'),  # {i+1}", flush=True)
+    print(f"]", flush=True)
 
     return split_points

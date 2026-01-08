@@ -2,7 +2,7 @@
 모든 후처리 스크립트를 순차적으로 실행
 
 실행 순서:
-1. update_notice_stats - notice 테이블 (bid_count, answer_rate)
+1. update_notice_stats - notice 테이블 (bid_count, answer_rate, min_winning_price)
 2. update_company_stats - company 테이블 (has_bid, bid_count)
 3. update_bid_rates - bid 테이블 (bid_rate, bid_rate_diff)
    ※ notice.a_value를 참조하므로 notice 동기화 완료 후 실행
@@ -64,8 +64,8 @@ def run_all_postprocess(schema: str = None):
 
     # 1. notice 테이블 후처리
     try:
-        loggers["application"].info("[1/4] notice 테이블 후처리 (bid_count, answer_rate)")
-        print("\n[1/4] notice 테이블 후처리 (bid_count, answer_rate)")
+        loggers["application"].info("[1/4] notice 테이블 후처리 (bid_count, answer_rate, min_winning_price)")
+        print("\n[1/4] notice 테이블 후처리 (bid_count, answer_rate, min_winning_price)")
         results["notice"] = update_notice_stats(schema)
         loggers["application"].info("[1/4] notice 테이블 후처리 완료")
     except Exception as e:

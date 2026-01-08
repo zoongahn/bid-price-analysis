@@ -63,7 +63,7 @@ def sync_all(schema: str = None, test_limit: int = None):
         test_limit: 테스트 모드 시 카테고리당 최대 동기화 건수 (기본값: None = 제한 없음)
 
     순서:
-    1. notice (공고 - FK 참조됨)
+    1. notice_unified (공고 - 공사/물품/외자/용역 통합, FK 참조됨)
     2. company (업체 - FK 참조됨)
     3. institution (수요기관)
     4. bid (투찰 - notice, company 참조)
@@ -72,7 +72,7 @@ def sync_all(schema: str = None, test_limit: int = None):
     7. notice_region (공고 참가가능지역 - notice 참조)
     8. company_industry_type (업체 업종정보 - company 참조)
     """
-    tables = ["notice", "company", "institution", "bid", "reserve_price_range", "notice_industry_type", "notice_region", "company_industry_type"]
+    tables = ["notice_unified", "company", "institution", "bid", "reserve_price_range", "notice_industry_type", "notice_region", "company_industry_type"]
 
     schema_info = f" (schema: {schema})" if schema else ""
     test_info = f" [TEST: {test_limit:,}건/카테고리]" if test_limit else ""

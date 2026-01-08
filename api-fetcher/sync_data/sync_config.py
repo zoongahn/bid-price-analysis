@@ -258,7 +258,7 @@ SYNC_CONFIGS = {
         ],
         "batch_size": 1000,
         "parallel": True,  # 병렬 처리 활성화
-        "num_workers": "auto",  # 카테고리 내 ObjectId 분할 워커 수
+        "total_workers": 32,  # 총 워커 수 (건수 비율에 따라 카테고리별 동적 배분)
         "foreign_key_check": {
             # 외래키 존재 여부 체크 (notice 테이블)
             "notice_keys": ("bidntceno", "bidntceord"),
@@ -269,17 +269,63 @@ SYNC_CONFIGS = {
     "reserve_price_range": {
         "psql_table": "reserve_price_range",
         "psql_pk": ("bidntceno", "bidntceord", "range_no"),
-        "merge_sources": [
+        "multi_source": True,  # 다중 primary 소스 모드 (공사/물품/용역/외자)
+        "categories": [
+            # === 공사 ===
             {
-                "collection_name": "낙찰정보서비스.개찰결과공사예비가격상세목록조회",
-                "is_primary": True,
-                "sync_flag": "is_synced",
-                "join_keys": None,
-                "projection": None,
+                "bsns_div": "공사",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과공사예비가격상세목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
+            },
+            # === 물품 ===
+            {
+                "bsns_div": "물품",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과물품예비가격상세목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
+            },
+            # === 용역 ===
+            {
+                "bsns_div": "용역",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과용역예비가격상세목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
+            },
+            # === 외자 ===
+            {
+                "bsns_div": "외자",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과외자예비가격상세목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
             },
         ],
         "batch_size": 10000,
-        "parallel": False,
+        "parallel": True,  # 4개 카테고리 병렬 처리
         "field_aliases": [
             # (PostgreSQL 필드명, MongoDB 필드명)
             ("range_no", "compnoRsrvtnPrceSno"),
