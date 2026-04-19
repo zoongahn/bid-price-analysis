@@ -3,7 +3,7 @@
 
 - 수집 DAG 완료 후 트리거됨
 - 모든 테이블을 순차적으로 동기화
-- 동기화 완료 후 후처리 UPDATE 실행
+- 동기화 완료 후 후처리 DAG 트리거
 - 테이블별 재시도 (10회, 즉시 재시도)
 
 동기화 순서:
@@ -17,12 +17,13 @@
 8. notice_industry_type (공고 면허제한정보 - notice 참조)
 9. notice_region (공고 참가가능지역 - notice 참조)
 10. company_industry_type (업체 업종정보 - company 참조)
-11. postprocess (후처리 UPDATE - 계산 컬럼)
+11. trigger_postprocess (후처리 DAG 트리거)
 """
 
 from datetime import timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.dates import days_ago
 import sys
 import os
@@ -37,11 +38,11 @@ from sync_data.sync.syncer_factory import create_syncer
 # 설정
 # =============================================================================
 
-SCHEMA = "tmp"  # PostgreSQL 스키마 (테스트용: tmp, 운영용: data)
+SCHEMA = "data"  # PostgreSQL 스키마 (테스트용: tmp, 운영용: data)
 
 # 동기화 순서 (FK 의존성 고려)
 SYNC_ORDER = [
-    "notice_unified",  # 공사/물품/외자/용역 4개 카테고리 통합
+    "notice",  # 공사/물품/외자/용역 4개 카테고리 통합 (syncer_factory: NoticeUnifiedSyncer)
     "company",
     "institution",
     "bid",
@@ -143,32 +144,6 @@ def verify_bizrno_before_bid_sync(schema: str = SCHEMA, **context):
         handler.close_connections()
 
 
-def run_postprocess(schema: str = SCHEMA, **context):
-    """
-    후처리 UPDATE 실행
-
-    동기화 완료 후 계산 컬럼들을 UPDATE합니다.
-    - notice: bid_count, answer_rate
-    - company: has_bid, bid_count
-    - bid: bid_rate, bid_rate_diff
-    - notice_industry_type: classification_code, classification_name
-    """
-    from sync_data.postprocess.run_all import run_all_postprocess
-
-    print(f"\n{'=' * 80}")
-    print(f"[후처리] 계산 컬럼 UPDATE 시작 (schema: {schema})")
-    print(f"{'=' * 80}\n")
-
-    try:
-        success = run_all_postprocess(schema=schema)
-        if not success:
-            raise Exception("후처리 중 일부 작업 실패")
-        print(f"\n[후처리] 모든 계산 컬럼 UPDATE 완료")
-    except Exception as e:
-        print(f"\n[후처리] 실패: {e}")
-        raise
-
-
 # =============================================================================
 # DAG 정의
 # =============================================================================
@@ -225,13 +200,13 @@ with DAG(
     )
 
     # =========================================================================
-    # Task 생성 - 후처리 UPDATE
+    # Task 생성 - 후처리 DAG 트리거
     # =========================================================================
 
-    postprocess_task = PythonOperator(
-        task_id="postprocess_calculated_columns",
-        python_callable=run_postprocess,
-        op_kwargs={"schema": SCHEMA},
+    trigger_postprocess = TriggerDagRunOperator(
+        task_id="trigger_postprocess_dag",
+        trigger_dag_id="postprocess_g2b_data",
+        wait_for_completion=False,  # 후처리 완료를 기다리지 않음
     )
 
     # =========================================================================
@@ -245,18 +220,15 @@ with DAG(
     # 3. institution → bid → reserve_price_range → ... → postprocess
 
     # notice → company
-    tasks["notice_unified"] >> tasks["company"]
+    tasks["notice"] >> tasks["company"]
 
     # company → FK 핸들링 → institution
     tasks["company"] >> handle_unknown_task >> verify_bizrno_task >> tasks["institution"]
 
-    # institution 이후 순차 실행 (institution → bid → reserve_price_range → ...)
-    remaining_tables = ["institution", "bid", "reserve_price_range",
-                        "notice_industry_type", "notice_region", "company_industry_type"]
-    for i in range(len(remaining_tables) - 1):
-        current = remaining_tables[i]
-        next_table = remaining_tables[i + 1]
-        tasks[current] >> tasks[next_table]
+    # institution → bid 순차, 이후는 병렬 (서로 독립적)
+    tasks["institution"] >> tasks["bid"]
 
-    # 마지막 동기화 Task 완료 후 후처리 실행
-    tasks["company_industry_type"] >> postprocess_task
+    parallel_tables = ["reserve_price_range", "notice_industry_type",
+                       "notice_region", "company_industry_type"]
+    for t in parallel_tables:
+        tasks["bid"] >> tasks[t] >> trigger_postprocess

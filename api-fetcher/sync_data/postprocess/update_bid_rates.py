@@ -10,7 +10,7 @@ bid_rate_diff: 사정률 기준 투찰률 차이 (bid_rate - 100)
 
 참조:
     - notice.a_value: A값 (GENERATED 컬럼)
-    - bid.bssamt: 기초금액
+    - notice.bssamt: 기초금액
     - bid.sucsflwstlmtrt: 낙찰하한율
     - bid.bidprcamt: 입찰금액
 """
@@ -69,12 +69,12 @@ def update_bid_rates(schema: str = None):
         update_bid_rate_sql = f"""
             UPDATE {schema}.bid b
             SET bid_rate = CASE
-                WHEN (b.bssamt IS NULL OR b.bssamt = 0
+                WHEN (n.bssamt IS NULL OR n.bssamt = 0
                       OR b.sucsflwstlmtrt IS NULL OR b.sucsflwstlmtrt = 0)
                 THEN NULL
                 ELSE trunc(
                     (((b.bidprcamt - COALESCE(n.a_value, 0)) / (b.sucsflwstlmtrt / 100)
-                      + COALESCE(n.a_value, 0)) / b.bssamt) * 100,
+                      + COALESCE(n.a_value, 0)) / n.bssamt) * 100,
                     5
                 )
             END
@@ -123,9 +123,10 @@ def update_bid_rates(schema: str = None):
 
         # Step 5: 샘플 데이터 출력
         cursor.execute(f"""
-            SELECT bidntceno, bidntceord, bidprcamt, bssamt, sucsflwstlmtrt, bid_rate, bid_rate_diff
-            FROM {schema}.bid
-            WHERE bid_rate IS NOT NULL
+            SELECT b.bidntceno, b.bidntceord, b.bidprcamt, n.bssamt, b.sucsflwstlmtrt, b.bid_rate, b.bid_rate_diff
+            FROM {schema}.bid b
+            JOIN {schema}.notice n ON b.bidntceno = n.bidntceno AND b.bidntceord = n.bidntceord
+            WHERE b.bid_rate IS NOT NULL
             ORDER BY RANDOM()
             LIMIT 5
         """)

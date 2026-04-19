@@ -111,6 +111,7 @@ MongoDB (gfcon_raw)
 | `NoticeIndustryTypeSyncer` | notice_industry_type | 단일 프로세스 |
 | `NoticeRegionSyncer` | notice_region | 단일 프로세스 |
 | `CompanyIndustryTypeSyncer` | company_industry_type | 단일 프로세스 |
+| **`SecondarySyncer`** | notice, company | **보조 컬렉션 전용 동기화** |
 
 ---
 
@@ -261,6 +262,7 @@ sync_data/
 │   │   ├── notice_unified_syncer.py
 │   │   ├── bid_syncer.py
 │   │   ├── reserve_price_range_syncer.py
+│   │   ├── secondary_syncer.py  # 보조 컬렉션 전용 동기화
 │   │   └── ...
 │   └── utils/
 │       ├── type_converter.py    # 타입 변환
@@ -423,6 +425,66 @@ python -m sync_data.scripts.reset_sync_flags all --force
 | `resync_industry_type.py` | notice_industry_type 재동기화 |
 | `insert_industry_type_info.py` | 업종 분류 정보 테이블 초기화 |
 | `update_industry_type_classification.py` | 업종 분류 코드/명 업데이트 |
+
+---
+
+## 보조 컬렉션 동기화 (SecondarySyncer)
+
+메인 공고가 먼저 동기화된 후, 보조 데이터(기초금액, 낙찰정보, 사업자상태 등)가 나중에 수집된 경우를 처리합니다.
+
+### 문제 상황
+
+기존 notice 동기화는 **메인 공고 컬렉션의 `is_synced` 플래그 기준**으로 동작합니다:
+
+```
+Day 1: 메인 공고 수집 + 동기화 (is_synced=True)
+Day 3: 기초금액 API에 데이터 추가 → 수집됨
+→ 메인 공고가 이미 is_synced=True이므로, 기초금액이 PostgreSQL에 반영되지 않음!
+```
+
+### 해결책
+
+`SecondarySyncer`는 모든 보조 컬렉션을 순회하며 `is_synced=False`인 문서만 찾아 PostgreSQL을 UPDATE합니다.
+
+### 대상 보조 컬렉션
+
+| 테이블 | 보조 컬렉션 | synced_at 컬럼 |
+|--------|------------|---------------|
+| notice | 기초금액 (공사/물품/용역) | `bssamt_synced_at` |
+| notice | 낙찰정보 (공사/물품/용역/외자) | `win_synced_at` |
+| company | 사업자등록상태정보 | `bizstt_status_updated_at` |
+
+### 사용법
+
+```bash
+cd /data/dev/bid-price-analysis/api-fetcher
+
+# 모든 보조 컬렉션 동기화
+python -m sync_data.sync.syncers.secondary_syncer
+
+# 특정 테이블의 보조 컬렉션만
+python -m sync_data.sync.syncers.secondary_syncer --table notice
+
+# 특정 컬렉션만
+python -m sync_data.sync.syncers.secondary_syncer --collection "입찰공고정보서비스.입찰공고목록정보에대한공사기초금액조회"
+
+# 보조 컬렉션 목록 확인
+python -m sync_data.sync.syncers.secondary_syncer --list
+```
+
+### 동작 흐름
+
+```
+1. sync_config.py에서 is_primary=False인 모든 소스 추출
+2. 각 보조 컬렉션에서 is_synced=False인 문서 조회
+3. join_keys(bidNtceNo, bidNtceOrd)로 PostgreSQL 레코드 찾기
+4. 해당 컬렉션의 필드들만 UPDATE + synced_at 컬럼 설정
+5. MongoDB is_synced=True 마킹
+```
+
+### DAG 연동
+
+`sync_data_dag.py`에서 notice 동기화 후 자동으로 보조 컬렉션 동기화를 실행할 수 있습니다.
 
 ---
 

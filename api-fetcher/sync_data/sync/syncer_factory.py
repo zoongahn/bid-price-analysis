@@ -27,8 +27,7 @@ class SyncerFactory:
 
     # 테이블명 -> Syncer 클래스 매핑
     _SYNCER_MAP = {
-        "notice": NoticeSyncer,
-        "notice_unified": NoticeUnifiedSyncer,
+        "notice": NoticeUnifiedSyncer,  # multi_source 구조 지원
         "company": CompanySyncer,
         "bid": BidSyncer,
         "reserve_price_range": ReservePriceRangeSyncer,

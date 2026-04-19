@@ -148,8 +148,8 @@ class MissingCompanyHandler:
             # FK 제약 추가
             cursor.execute(f"""
                 ALTER TABLE {self.schema}.bid
-                ADD CONSTRAINT bid_bidprccorpbizrno_fkey
-                FOREIGN KEY (bidprccorpbizrno) REFERENCES {self.schema}.company(bizno)
+                ADD CONSTRAINT bid_prcbdrbizno_fkey
+                FOREIGN KEY (prcbdrbizno) REFERENCES {self.schema}.company(bizno)
             """)
             conn.commit()
 
@@ -177,13 +177,15 @@ class MissingCompanyHandler:
         # bid에 있지만 company에 없는 bizno 조회
         # __DEFAULT__와 __UNKNOWN__은 제외
         cursor.execute(f"""
-            SELECT DISTINCT b.bidprccorpbizrno
+            SELECT DISTINCT b.prcbdrbizno
             FROM {self.schema}.bid b
-            LEFT JOIN {self.schema}.company c ON b.bidprccorpbizrno = c.bizno
+            LEFT JOIN {self.schema}.company c ON b.prcbdrbizno = c.bizno
             WHERE c.bizno IS NULL
-            AND b.bidprccorpbizrno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
-            AND b.bidprccorpbizrno IS NOT NULL
-            AND b.bidprccorpbizrno != ''
+            AND b.prcbdrbizno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
+            AND b.prcbdrbizno IS NOT NULL
+            AND b.prcbdrbizno != ''
+            AND b.prcbdrbizno IS NOT NULL
+            AND b.prcbdrbizno != ''
         """)
 
         missing_bizno = {row[0] for row in cursor.fetchall()}
@@ -283,13 +285,15 @@ class MissingCompanyHandler:
         try:
             # 여전히 company에 없는 bizno 조회
             cursor.execute(f"""
-                SELECT DISTINCT b.bidprccorpbizrno
+                SELECT DISTINCT b.prcbdrbizno
                 FROM {self.schema}.bid b
-                LEFT JOIN {self.schema}.company c ON b.bidprccorpbizrno = c.bizno
+                LEFT JOIN {self.schema}.company c ON b.prcbdrbizno = c.bizno
                 WHERE c.bizno IS NULL
-                AND b.bidprccorpbizrno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
-                AND b.bidprccorpbizrno IS NOT NULL
-                AND b.bidprccorpbizrno != ''
+                AND b.prcbdrbizno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
+            AND b.prcbdrbizno IS NOT NULL
+            AND b.prcbdrbizno != ''
+                AND b.prcbdrbizno IS NOT NULL
+                AND b.prcbdrbizno != ''
             """)
             missing_bizno = [row[0] for row in cursor.fetchall()]
 
@@ -342,13 +346,15 @@ class MissingCompanyHandler:
 
             # 여전히 company에 없는 bizno 개수 확인
             cursor.execute(f"""
-                SELECT COUNT(DISTINCT b.bidprccorpbizrno)
+                SELECT COUNT(DISTINCT b.prcbdrbizno)
                 FROM {self.schema}.bid b
-                LEFT JOIN {self.schema}.company c ON b.bidprccorpbizrno = c.bizno
+                LEFT JOIN {self.schema}.company c ON b.prcbdrbizno = c.bizno
                 WHERE c.bizno IS NULL
-                AND b.bidprccorpbizrno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
-                AND b.bidprccorpbizrno IS NOT NULL
-                AND b.bidprccorpbizrno != ''
+                AND b.prcbdrbizno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
+            AND b.prcbdrbizno IS NOT NULL
+            AND b.prcbdrbizno != ''
+                AND b.prcbdrbizno IS NOT NULL
+                AND b.prcbdrbizno != ''
             """)
             still_missing_count = cursor.fetchone()[0]
 
@@ -361,17 +367,17 @@ class MissingCompanyHandler:
             # __UNKNOWN__으로 UPDATE
             cursor.execute(f"""
                 UPDATE {self.schema}.bid b
-                SET bidprccorpbizrno = '{UNKNOWN_BIZNO}'
+                SET prcbdrbizno = '{UNKNOWN_BIZNO}'
                 FROM (
-                    SELECT DISTINCT bidprccorpbizrno
+                    SELECT DISTINCT prcbdrbizno
                     FROM {self.schema}.bid b2
-                    LEFT JOIN {self.schema}.company c ON b2.bidprccorpbizrno = c.bizno
+                    LEFT JOIN {self.schema}.company c ON b2.prcbdrbizno = c.bizno
                     WHERE c.bizno IS NULL
-                    AND b2.bidprccorpbizrno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
-                    AND b2.bidprccorpbizrno IS NOT NULL
-                    AND b2.bidprccorpbizrno != ''
+                    AND b2.prcbdrbizno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
+                    AND b2.prcbdrbizno IS NOT NULL
+                    AND b2.prcbdrbizno != ''
                 ) missing
-                WHERE b.bidprccorpbizrno = missing.bidprccorpbizrno
+                WHERE b.prcbdrbizno = missing.prcbdrbizno
             """)
             updated_count = cursor.rowcount
             conn.commit()
@@ -393,9 +399,9 @@ class MissingCompanyHandler:
         cursor.execute(f"""
             SELECT
                 COUNT(*) as total,
-                COUNT(DISTINCT bidprccorpbizrno) as unique_bizno,
-                COUNT(*) FILTER (WHERE bidprccorpbizrno = '{DEFAULT_BIZNO}') as default_count,
-                COUNT(*) FILTER (WHERE bidprccorpbizrno = '{UNKNOWN_BIZNO}') as unknown_count
+                COUNT(DISTINCT prcbdrbizno) as unique_bizno,
+                COUNT(*) FILTER (WHERE prcbdrbizno = '{DEFAULT_BIZNO}') as default_count,
+                COUNT(*) FILTER (WHERE prcbdrbizno = '{UNKNOWN_BIZNO}') as unknown_count
             FROM {self.schema}.bid
         """)
         bid_stats = cursor.fetchone()
@@ -408,11 +414,13 @@ class MissingCompanyHandler:
 
         # 누락된 bizno 개수
         cursor.execute(f"""
-            SELECT COUNT(DISTINCT b.bidprccorpbizrno)
+            SELECT COUNT(DISTINCT b.prcbdrbizno)
             FROM {self.schema}.bid b
-            LEFT JOIN {self.schema}.company c ON b.bidprccorpbizrno = c.bizno
+            LEFT JOIN {self.schema}.company c ON b.prcbdrbizno = c.bizno
             WHERE c.bizno IS NULL
-            AND b.bidprccorpbizrno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
+            AND b.prcbdrbizno NOT IN ('{DEFAULT_BIZNO}', '{UNKNOWN_BIZNO}')
+            AND b.prcbdrbizno IS NOT NULL
+            AND b.prcbdrbizno != ''
         """)
         missing_count = cursor.fetchone()[0]
 

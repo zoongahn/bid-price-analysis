@@ -1,61 +1,59 @@
-CREATE TABLE IF NOT EXISTS bid
-(
-    /* 공고 식별자 */
-    bidNtceNo        TEXT NOT NULL,
-    bidNtceOrd       TEXT NOT NULL,
+-- bid 테이블: 개찰결과 (개찰완료/유찰/재입찰) 통합 테이블
+-- 소스: 낙찰정보서비스.개찰결과개찰완료목록조회, 유찰목록조회, 재입찰목록조회
 
-    /* 금액 정보 */
-    presmptPrce      BIGINT,           -- 예정가격
-    rsrvtnPrce       BIGINT,           -- 예약가격
-    bssAmt           BIGINT,           -- 기초금액
-    sucsfLwstlmtRt   NUMERIC,          -- 낙찰하한율
+CREATE TABLE IF NOT EXISTS {schema}.bid (
+    -- 복합 PK
+    bidntceno VARCHAR(20) NOT NULL,          -- 입찰공고번호
+    bidntceord VARCHAR(3) NOT NULL,          -- 입찰공고차수
+    bidclsfcno VARCHAR(10) NOT NULL,         -- 입찰분류번호
+    rbidno VARCHAR(3) NOT NULL,              -- 재입찰번호
+    prcbdrbizno VARCHAR(20) NOT NULL DEFAULT '',  -- 투찰자 사업자등록번호 (PK용 빈문자열)
 
-    /* 투찰 정보 */
-    opengRank        INTEGER,          -- 개찰순위
-    bidprcCorpBizrno TEXT NOT NULL,    -- 입찰업체사업자등록번호
-    bidprcAmt        BIGINT,           -- 입찰금액
-    bidprcRt         NUMERIC,          -- 입찰률
-    bidprcDate       DATE,             -- 입찰일자
-    bidprcTm         TIME,             -- 입찰시간
-    sucsfYn          TEXT,             -- 낙찰여부
-    dqlfctnRsn       TEXT,             -- 탈락사유
+    opengrsltdivnm VARCHAR(20) NOT NULL,     -- 개찰결과구분 (개찰완료/유찰/재입찰)
 
-    /* 계산 컬럼 (후처리 UPDATE) */
-    bid_rate         NUMERIC,          -- 사정률 기준 투찰률
-    bid_rate_diff    NUMERIC,          -- 사정률 기준 투찰률 차이 (bid_rate - 100)
+    -- 개찰완료 전용 필드
+    prcbdrnm VARCHAR(200),                   -- 투찰자명
+    prcbdrceonm VARCHAR(100),                -- 투찰자 대표자명
+    bidprcamt BIGINT,                        -- 투찰금액
+    bidprcdt TIMESTAMP,                      -- 투찰일시
+    bidprcrt NUMERIC,                        -- 투찰률
+    opengrank INTEGER,                       -- 개찰순위
+    drwtno1 VARCHAR(20),                     -- 추첨번호1
+    drwtno2 VARCHAR(20),                     -- 추첨번호2
+    bidprceevlval VARCHAR(50),               -- 입찰가격평가값
+    techevlval VARCHAR(50),                  -- 기술평가값
+    techevlnaturval VARCHAR(50),             -- 기술평가환산값
+    totalevlamtval VARCHAR(50),              -- 종합평가금액값
+    cnsttyaccotbidamturl TEXT,               -- 공종별내역투찰금액URL
+    rmrk TEXT,                               -- 비고
 
-    /* 메타 */
-    collected_at     TIMESTAMPTZ,      -- 수집시각
-    synced_at        TIMESTAMPTZ,      -- 마지막 동기화 시점
+    -- 유찰 전용 필드
+    nobidrsn VARCHAR(500),                   -- 유찰사유
 
-    /* 제약 조건 */
-    PRIMARY KEY (bidNtceNo, bidNtceOrd, bidprcCorpBizrno),
-    FOREIGN KEY (bidNtceNo, bidNtceOrd) REFERENCES notice (bidNtceNo, bidNtceOrd),
-    FOREIGN KEY (bidprcCorpBizrno) REFERENCES company (bizno)
+    -- 재입찰 전용 필드
+    rbidrsn VARCHAR(500),                    -- 재입찰사유
+    bidclsedt TIMESTAMP,                     -- 입찰마감일시 (재입찰)
+    opengdt TIMESTAMP,                       -- 개찰일시 (재입찰)
+    cmmnspldmdagrmntclsedt TIMESTAMP,        -- 공동수급협정마감일시
+
+    -- 메타데이터
+    collected_at TIMESTAMP,                  -- MongoDB 수집일시
+    synced_at TIMESTAMP DEFAULT NOW(),       -- PostgreSQL 동기화일시
+
+    -- 복합 Primary Key
+    PRIMARY KEY (bidntceno, bidntceord, bidclsfcno, rbidno, prcbdrbizno)
 );
 
-/* 컬럼 주석 */
-COMMENT ON TABLE bid IS '투찰 정보';
+-- 인덱스
+CREATE INDEX IF NOT EXISTS idx_bid_bidntceno ON {schema}.bid(bidntceno);
+CREATE INDEX IF NOT EXISTS idx_bid_opengrsltdivnm ON {schema}.bid(opengrsltdivnm);
+CREATE INDEX IF NOT EXISTS idx_bid_prcbdrbizno ON {schema}.bid(prcbdrbizno);
+CREATE INDEX IF NOT EXISTS idx_bid_bidprcdt ON {schema}.bid(bidprcdt);
+CREATE INDEX IF NOT EXISTS idx_bid_collected_at ON {schema}.bid(collected_at);
 
-COMMENT ON COLUMN bid.bidNtceNo IS '입찰공고번호';
-COMMENT ON COLUMN bid.bidNtceOrd IS '입찰공고차수';
-COMMENT ON COLUMN bid.presmptPrce IS '예정가격';
-COMMENT ON COLUMN bid.rsrvtnPrce IS '예약가격';
-COMMENT ON COLUMN bid.bssAmt IS '기초금액';
-COMMENT ON COLUMN bid.sucsfLwstlmtRt IS '낙찰하한율 (낙찰 최저 제한율)';
-COMMENT ON COLUMN bid.opengRank IS '개찰순위';
-COMMENT ON COLUMN bid.bidprcCorpBizrno IS '입찰업체사업자등록번호';
-COMMENT ON COLUMN bid.bidprcAmt IS '입찰금액';
-COMMENT ON COLUMN bid.bidprcRt IS '입찰률';
-COMMENT ON COLUMN bid.bidprcDate IS '입찰일자';
-COMMENT ON COLUMN bid.bidprcTm IS '입찰시간';
-COMMENT ON COLUMN bid.sucsfYn IS '낙찰여부';
-COMMENT ON COLUMN bid.dqlfctnRsn IS '탈락사유';
-COMMENT ON COLUMN bid.bid_rate IS '사정률 기준 투찰률 (후처리 계산)';
-COMMENT ON COLUMN bid.bid_rate_diff IS '사정률 기준 투찰률 차이 (bid_rate - 100)';
-COMMENT ON COLUMN bid.collected_at IS '수집시각';
-COMMENT ON COLUMN bid.synced_at IS '마지막 동기화 시점';
-
-/* 인덱스 */
-CREATE INDEX IF NOT EXISTS idx_bid_ntce ON bid(bidNtceNo, bidNtceOrd);
-CREATE INDEX IF NOT EXISTS idx_bid_corp ON bid(bidprcCorpBizrno);
+-- 코멘트
+COMMENT ON TABLE {schema}.bid IS '개찰결과 통합 테이블 (개찰완료/유찰/재입찰)';
+COMMENT ON COLUMN {schema}.bid.opengrsltdivnm IS '개찰결과구분: 개찰완료, 유찰, 재입찰';
+COMMENT ON COLUMN {schema}.bid.prcbdrbizno IS '투찰자 사업자등록번호 (개찰완료만)';
+COMMENT ON COLUMN {schema}.bid.nobidrsn IS '유찰사유 (유찰만)';
+COMMENT ON COLUMN {schema}.bid.rbidrsn IS '재입찰사유 (재입찰만)';

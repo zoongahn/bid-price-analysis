@@ -38,7 +38,7 @@ def to_datetime(v):
 		if not v:
 			return None
 		if isinstance(v, str):
-			for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%H:%M:%S", "%H:%M"):
+			for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%H:%M:%S", "%H:%M"):
 				try:
 					return datetime.strptime(v, fmt)
 				except ValueError:

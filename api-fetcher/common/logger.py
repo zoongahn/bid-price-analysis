@@ -46,6 +46,7 @@ def setup_loggers(
 	target_start: str = None,
 	target_end: str = None,
 	bsns_div_cd: int = None,
+	existing_log_dir: str = None,
 ):
 	"""
 	로거 설정 및 로그 디렉토리 생성
@@ -57,6 +58,7 @@ def setup_loggers(
 		target_start: 수집 시작일 (예: "2025-01-01")
 		target_end: 수집 종료일 (예: "2025-12-14")
 		bsns_div_cd: 사업구분코드 (1=물품, 2=외자, 3=공사, 5=용역)
+		existing_log_dir: 기존 로그 디렉토리 경로 (멀티워커 통합 로깅용)
 
 	Returns:
 		dict: {"loggers": {...}, "log_dir": str, "meta_path": str}
@@ -76,25 +78,30 @@ def setup_loggers(
 	# bsns_div_cd 매핑 (디렉토리명 생성용)
 	bsns_div_map = {1: "물품", 2: "외자", 3: "공사", 5: "용역"}
 
-	# 디렉토리명 생성: timestamp_서비스명_오퍼레이션명_사업구분_수집날짜
-	dir_parts = [timestamp]
-	if service_name:
-		dir_parts.append(service_name)
-	if operation_name:
-		dir_parts.append(operation_name)
-	if bsns_div_cd and bsns_div_cd in bsns_div_map:
-		dir_parts.append(bsns_div_map[bsns_div_cd])
-	if target_start and target_end:
-		if target_start == target_end:
-			dir_parts.append(target_start)
-		else:
-			dir_parts.append(f"{target_start}_to_{target_end}")
-	elif year:
-		dir_parts.append(f"YEAR{year}")
-	dir_name = "_".join(dir_parts)
+	# 기존 로그 디렉토리가 주어지면 사용
+	if existing_log_dir:
+		time_dir = existing_log_dir
+		os.makedirs(time_dir, exist_ok=True)
+	else:
+		# 디렉토리명 생성: timestamp_서비스명_오퍼레이션명_사업구분_수집날짜
+		dir_parts = [timestamp]
+		if service_name:
+			dir_parts.append(service_name)
+		if operation_name:
+			dir_parts.append(operation_name)
+		if bsns_div_cd and bsns_div_cd in bsns_div_map:
+			dir_parts.append(bsns_div_map[bsns_div_cd])
+		if target_start and target_end:
+			if target_start == target_end:
+				dir_parts.append(target_start)
+			else:
+				dir_parts.append(f"{target_start}_to_{target_end}")
+		elif year:
+			dir_parts.append(f"YEAR{year}")
+		dir_name = "_".join(dir_parts)
 
-	time_dir = os.path.join(logs_dir, dir_name)
-	os.makedirs(time_dir, exist_ok=True)
+		time_dir = os.path.join(logs_dir, dir_name)
+		os.makedirs(time_dir, exist_ok=True)
 
 	# meta.json 생성
 	meta = {
@@ -119,7 +126,9 @@ def setup_loggers(
 		json.dump(meta, f, ensure_ascii=False, indent=2)
 
 	# 기존 루트 로거 핸들러 제거 (이중 출력 방지)
-	logging.getLogger().handlers.clear()
+	# 주의: Airflow 환경에서는 루트 핸들러 제거 시 태스크가 비정상 종료될 수 있음
+	if not os.getenv("AIRFLOW_CTX_DAG_ID"):
+		logging.getLogger().handlers.clear()
 
 	log_files = {
 		"application": os.path.join(time_dir, "application.log"),
@@ -148,23 +157,30 @@ def setup_loggers(
 		logger.addHandler(file_handler)
 
 		# 콘솔 로그 설정 (application logger에만 적용)
-		# Airflow 환경에서는 colorlog가 충돌을 일으키므로 비활성화
-		if name == "application" and not os.getenv("AIRFLOW_CTX_DAG_ID"):
-			console_handler = colorlog.StreamHandler()
-			console_formatter = colorlog.ColoredFormatter(
-				"%(log_color)s[%(levelname)s] %(asctime)s - %(message)s",
-				datefmt=date_format,
-				log_colors={
-					"VERIFY": "purple",
-					"FETCH": "cyan",
-					"DAY": "green",
-					"YEAR": "yellow",
-					"ERROR": "red",
-					"CRITICAL": "bold_red"
-				}
-			)
-			console_handler.setFormatter(console_formatter)
-			logger.addHandler(console_handler)
+		if name == "application":
+			if os.getenv("AIRFLOW_CTX_DAG_ID"):
+				# Airflow 환경: 일반 StreamHandler 사용 (colorlog 충돌 방지)
+				console_handler = logging.StreamHandler()
+				console_formatter = logging.Formatter(log_format, datefmt=date_format)
+				console_handler.setFormatter(console_formatter)
+				logger.addHandler(console_handler)
+			else:
+				# 일반 환경: colorlog 사용
+				console_handler = colorlog.StreamHandler()
+				console_formatter = colorlog.ColoredFormatter(
+					"%(log_color)s[%(levelname)s] %(asctime)s - %(message)s",
+					datefmt=date_format,
+					log_colors={
+						"VERIFY": "purple",
+						"FETCH": "cyan",
+						"DAY": "green",
+						"YEAR": "yellow",
+						"ERROR": "red",
+						"CRITICAL": "bold_red"
+					}
+				)
+				console_handler.setFormatter(console_formatter)
+				logger.addHandler(console_handler)
 
 		loggers[name] = logger
 
@@ -266,22 +282,29 @@ def setup_sync_loggers(
 		logger.addHandler(file_handler)
 
 		# 콘솔 로그 설정 (application logger에만 적용)
-		# Airflow 환경에서는 colorlog가 충돌을 일으키므로 비활성화
-		if name == "application" and not os.getenv("AIRFLOW_CTX_DAG_ID"):
-			console_handler = colorlog.StreamHandler()
-			console_formatter = colorlog.ColoredFormatter(
-				"%(log_color)s[%(levelname)s] %(asctime)s - %(message)s",
-				datefmt=date_format,
-				log_colors={
-					"DEBUG": "white",
-					"INFO": "green",
-					"WARNING": "yellow",
-					"ERROR": "red",
-					"CRITICAL": "bold_red"
-				}
-			)
-			console_handler.setFormatter(console_formatter)
-			logger.addHandler(console_handler)
+		if name == "application":
+			if os.getenv("AIRFLOW_CTX_DAG_ID"):
+				# Airflow 환경: 일반 StreamHandler 사용 (colorlog 충돌 방지)
+				console_handler = logging.StreamHandler()
+				console_formatter = logging.Formatter(log_format, datefmt=date_format)
+				console_handler.setFormatter(console_formatter)
+				logger.addHandler(console_handler)
+			else:
+				# 일반 환경: colorlog 사용
+				console_handler = colorlog.StreamHandler()
+				console_formatter = colorlog.ColoredFormatter(
+					"%(log_color)s[%(levelname)s] %(asctime)s - %(message)s",
+					datefmt=date_format,
+					log_colors={
+						"DEBUG": "white",
+						"INFO": "green",
+						"WARNING": "yellow",
+						"ERROR": "red",
+						"CRITICAL": "bold_red"
+					}
+				)
+				console_handler.setFormatter(console_formatter)
+				logger.addHandler(console_handler)
 
 		loggers[name] = logger
 

@@ -22,6 +22,44 @@ from sync_data.sync_config import get_config
 KST = timezone(timedelta(hours=9))
 
 
+def parse_opengcorpinfo(row_dict: dict) -> None:
+    """
+    opengcorpinfo를 파싱하여 winner_* 컬럼으로 분리 (in-place)
+
+    형식: 업체명^사업자번호^대표자명^투찰금액^예가대비투찰률
+    예시: 모토^3142093425^석재준^47350000^100.256
+
+    분리 컬럼:
+        - winner_corpnm: 낙찰업체명
+        - winner_bizno: 낙찰업체 사업자등록번호
+        - winner_ceonm: 낙찰업체 대표자명
+        - winner_bidamt: 낙찰업체 투찰금액
+        - winner_plnprc_rate: 예가대비투찰률 = (투찰금액-A값)/(예정가격-A값)×100
+    """
+    opengcorpinfo = row_dict.get("opengcorpinfo")
+    if not opengcorpinfo:
+        return
+
+    parts = opengcorpinfo.split("^")
+
+    if len(parts) >= 1 and parts[0].strip():
+        row_dict["winner_corpnm"] = parts[0].strip()
+    if len(parts) >= 2 and parts[1].strip():
+        row_dict["winner_bizno"] = parts[1].strip()
+    if len(parts) >= 3 and parts[2].strip():
+        row_dict["winner_ceonm"] = parts[2].strip()
+    if len(parts) >= 4 and parts[3].strip():
+        try:
+            row_dict["winner_bidamt"] = int(parts[3].strip())
+        except ValueError:
+            pass
+    if len(parts) >= 5 and parts[4].strip():
+        try:
+            row_dict["winner_plnprc_rate"] = float(parts[4].strip())
+        except ValueError:
+            pass
+
+
 class NoticeUnifiedSyncer(BaseSyncer):
     """
     Notice 통합 테이블 동기화 클래스
@@ -36,8 +74,8 @@ class NoticeUnifiedSyncer(BaseSyncer):
             parallel: 병렬 처리 여부 (기본: True)
             test_limit: 테스트 모드 시 카테고리당 최대 동기화 건수 (기본값: None = 제한 없음)
         """
-        # notice_unified config 사용
-        super().__init__("notice_unified", schema=schema, test_limit=test_limit)
+        # notice config 사용 (multi_source 구조)
+        super().__init__("notice", schema=schema, test_limit=test_limit)
 
         self.parallel = parallel
         # 카테고리별 통계
@@ -74,17 +112,17 @@ class NoticeUnifiedSyncer(BaseSyncer):
 
     def _create_unified_table(self):
         """
-        notice_v2_unified.sql 파일을 사용하여 테이블 생성
+        notice.sql 파일을 사용하여 테이블 생성
         """
         import os
 
-        # notice_v2_unified.sql 파일 경로
+        # notice.sql 파일 경로
         sql_file = os.path.join(
             os.path.dirname(__file__),
             "..",
             "..",
             "create",
-            "notice_v2_unified.sql"
+            "notice.sql"
         )
 
         if not os.path.exists(sql_file):
@@ -122,6 +160,10 @@ class NoticeUnifiedSyncer(BaseSyncer):
         sql_content = sql_content.replace(
             "COMMENT ON TABLE notice",
             f"COMMENT ON TABLE {self.schema}.notice"
+        )
+        sql_content = sql_content.replace(
+            "COMMENT ON COLUMN notice.",
+            f"COMMENT ON COLUMN {self.schema}.notice."
         )
 
         try:
@@ -426,7 +468,11 @@ class NoticeUnifiedSyncer(BaseSyncer):
             doc = collection.find_one(join_query, projection) or {}
 
             if doc:
-                merged.update(doc)
+                # field_mapping 적용 (opengDt -> actual_opengdt 등)
+                field_mapping = source.get("field_mapping", {})
+                for key, value in doc.items():
+                    mapped_key = field_mapping.get(key, key)
+                    merged[mapped_key] = value
                 if source.get("synced_at_column"):
                     source_synced_columns.append(source["synced_at_column"])
 
@@ -447,6 +493,9 @@ class NoticeUnifiedSyncer(BaseSyncer):
         field_aliases = self.config.get("field_aliases")
         row_dict = transform_document(self.psql_meta, doc, field_aliases)
         row_dict.pop("_id", None)
+
+        # opengcorpinfo 파싱하여 winner_* 컬럼 분리
+        parse_opengcorpinfo(row_dict)
 
         # synced_at 컬럼 설정
         if "synced_at" in self.psql_columns:
@@ -590,7 +639,7 @@ def _category_worker(
     sync_flag = primary_source["sync_flag"]
 
     # PostgreSQL 메타데이터
-    config = get_config("notice_unified")
+    config = get_config("notice")
     psql_meta = PostgresMeta(psql_conn, schema=schema).get_column_types(config["psql_table"])
     psql_columns = list(psql_meta.keys())
     field_aliases = config.get("field_aliases")
@@ -644,7 +693,11 @@ def _category_worker(
             sub_doc = coll.find_one(join_query, projection) or {}
 
             if sub_doc:
-                merged_doc.update(sub_doc)
+                # field_mapping 적용 (opengDt -> actual_opengdt 등)
+                field_mapping = source.get("field_mapping", {})
+                for key, value in sub_doc.items():
+                    mapped_key = field_mapping.get(key, key)
+                    merged_doc[mapped_key] = value
                 if source.get("synced_at_column"):
                     source_synced_columns.append(source["synced_at_column"])
 
@@ -654,6 +707,9 @@ def _category_worker(
         # PostgreSQL row 변환
         row_dict = transform_document(psql_meta, merged_doc, field_aliases)
         row_dict.pop("_id", None)
+
+        # opengcorpinfo 파싱하여 winner_* 컬럼 분리
+        parse_opengcorpinfo(row_dict)
 
         # synced_at 컬럼 설정
         if "synced_at" in psql_columns:

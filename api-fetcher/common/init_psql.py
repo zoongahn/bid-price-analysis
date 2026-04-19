@@ -1,10 +1,13 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 import psycopg2
 from sshtunnel import SSHTunnelForwarder
 import socket
 
-load_dotenv()
+# 프로젝트 루트의 .env 파일 로드
+project_root = Path(__file__).resolve().parent.parent
+load_dotenv(project_root / ".env")
 
 POSTGRES_DB = os.getenv("POSTGRES_DB")
 POSTGRES_USER = os.getenv("POSTGRES_USER")

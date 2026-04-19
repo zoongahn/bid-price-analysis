@@ -174,14 +174,36 @@ class SingleProcessSyncStrategy(SyncStrategy):
             doc = collection.find_one(join_query, projection) or {}
 
             if doc:  # 데이터가 있는 경우에만 synced_at_column 추가
-                merged.update(doc)
+                # field_mapping이 있으면 필드명 변환
+                field_mapping = source.get("field_mapping")
+                if field_mapping:
+                    for src_field, dst_field in field_mapping.items():
+                        if src_field in doc:
+                            merged[dst_field] = doc[src_field]
+                else:
+                    merged.update(doc)
+
                 if source.get("synced_at_column"):
                     source_synced_columns.append(source["synced_at_column"])
 
         return merged, source_synced_columns
 
     def _build_join_query(self, primary_doc: dict, join_keys: tuple) -> dict:
-        """조인 쿼리 생성"""
+        """조인 쿼리 생성
+
+        Args:
+            primary_doc: primary 컬렉션 문서
+            join_keys: 조인 키 설정
+                - 기존 형태: ("field1", "field2") - 두 컬렉션에서 같은 필드명 사용
+                - 새로운 형태: ("primary_field", "secondary_field") - 필드명이 다른 경우
+                  (2개 요소인 경우 첫번째=primary 필드, 두번째=secondary 필드로 해석)
+        """
+        # join_keys가 2개이고, 두번째 요소가 primary_doc에 없으면 (primary_field, secondary_field) 형태
+        if len(join_keys) == 2 and join_keys[1] not in primary_doc and join_keys[0] in primary_doc:
+            primary_field, secondary_field = join_keys
+            return {secondary_field: primary_doc[primary_field]}
+
+        # 기존 형태: 모든 키가 동일
         return {key: primary_doc[key] for key in join_keys}
 
     def _transform_to_psql_row(self, syncer: 'BaseSyncer', doc: dict, source_synced_columns: list = None) -> dict:
@@ -411,6 +433,27 @@ class ParallelSyncStrategy(SyncStrategy):
         return {}
 
 
+def _build_join_query_worker(primary_doc: dict, join_keys: tuple) -> dict:
+    """워커용 조인 쿼리 생성
+
+    Args:
+        primary_doc: primary 컬렉션 문서
+        join_keys: 조인 키 설정
+            - 기존 형태: ("field1", "field2") - 두 컬렉션에서 같은 필드명 사용
+            - 새로운 형태: ("primary_field", "secondary_field") - 필드명이 다른 경우
+    """
+    if not join_keys:
+        return {}
+
+    # join_keys가 2개이고, 두번째 요소가 primary_doc에 없으면 (primary_field, secondary_field) 형태
+    if len(join_keys) == 2 and join_keys[1] not in primary_doc and join_keys[0] in primary_doc:
+        primary_field, secondary_field = join_keys
+        return {secondary_field: primary_doc.get(primary_field)}
+
+    # 기존 형태: 모든 키가 동일
+    return {key: primary_doc.get(key) for key in join_keys}
+
+
 def _merge_documents_worker(mongo_db, config: dict, primary_doc: dict) -> tuple[dict, list]:
     """
     워커에서 사용할 다중 컬렉션 병합 함수
@@ -434,13 +477,21 @@ def _merge_documents_worker(mongo_db, config: dict, primary_doc: dict) -> tuple[
         join_keys = source.get("join_keys", ())
 
         # 조인 쿼리 생성
-        join_query = {key: primary_doc.get(key) for key in join_keys}
+        join_query = _build_join_query_worker(primary_doc, join_keys)
 
         projection = source.get("projection") or {"_id": 0}
         doc = collection.find_one(join_query, projection) or {}
 
         if doc:  # 데이터가 있는 경우에만 synced_at_column 추가
-            merged.update(doc)
+            # field_mapping이 있으면 필드명 변환
+            field_mapping = source.get("field_mapping")
+            if field_mapping:
+                for src_field, dst_field in field_mapping.items():
+                    if src_field in doc:
+                        merged[dst_field] = doc[src_field]
+            else:
+                merged.update(doc)
+
             if source.get("synced_at_column"):
                 source_synced_columns.append(source["synced_at_column"])
 
@@ -580,7 +631,7 @@ def _worker_process(
                     continue
                 coll_name = source["collection_name"]
                 join_keys = source.get("join_keys", ())
-                join_query = {key: doc.get(key) for key in join_keys}
+                join_query = _build_join_query_worker(doc, join_keys)
 
                 merged_coll = mongo_db[coll_name]
                 merged_doc_id = merged_coll.find_one(join_query, {"_id": 1})

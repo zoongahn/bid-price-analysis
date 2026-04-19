@@ -43,6 +43,19 @@ CREATE TABLE IF NOT EXISTS company
     collected_at      TIMESTAMPTZ,      -- 수집시각
     synced_at         TIMESTAMPTZ,      -- 마지막 동기화 시점
 
+    /* 국세청 사업자등록 상태조회 결과 */
+    bizstt_b_stt            TEXT,          -- 납세자상태 (계속사업자/휴업자/폐업자)
+    bizstt_b_stt_cd         TEXT,          -- 납세자상태 코드 (01/02/03)
+    bizstt_tax_type         TEXT,          -- 과세유형 명칭
+    bizstt_tax_type_cd      TEXT,          -- 과세유형 코드
+    bizstt_end_dt           DATE,          -- 폐업일
+    bizstt_utcc_yn          TEXT,          -- 단위과세전환폐업여부 (Y/N)
+    bizstt_tax_type_change_dt DATE,        -- 최근과세유형전환일자
+    bizstt_invoice_apply_dt DATE,          -- 세금계산서적용일자
+    bizstt_rbf_tax_type     TEXT,          -- 직전과세유형 명칭
+    bizstt_rbf_tax_type_cd  TEXT,          -- 직전과세유형 코드
+    bizstt_status_updated_at TIMESTAMPTZ,  -- 국세청 상태 조회 시각
+
     /* 계산 컬럼 (후처리 UPDATE) */
     has_bid           BOOLEAN,          -- 투찰 이력 여부
     bid_count         INTEGER           -- 투찰 횟수
@@ -77,6 +90,17 @@ COMMENT ON COLUMN company.esntlNoCertRgstYn IS '필수번호 인증 등록 여�
 COMMENT ON COLUMN company.ceoNm IS '대표자명';
 COMMENT ON COLUMN company.collected_at IS '데이터 수집 시각';
 COMMENT ON COLUMN company.synced_at IS '마지막 동기화 시점';
+COMMENT ON COLUMN company.bizstt_b_stt IS '국세청 납세자상태 (계속사업자/휴업자/폐업자)';
+COMMENT ON COLUMN company.bizstt_b_stt_cd IS '국세청 납세자상태 코드 (01/02/03)';
+COMMENT ON COLUMN company.bizstt_tax_type IS '국세청 과세유형 명칭';
+COMMENT ON COLUMN company.bizstt_tax_type_cd IS '국세청 과세유형 코드';
+COMMENT ON COLUMN company.bizstt_end_dt IS '국세청 폐업일';
+COMMENT ON COLUMN company.bizstt_utcc_yn IS '국세청 단위과세전환폐업여부 (Y/N)';
+COMMENT ON COLUMN company.bizstt_tax_type_change_dt IS '국세청 최근과세유형전환일자';
+COMMENT ON COLUMN company.bizstt_invoice_apply_dt IS '국세청 세금계산서적용일자';
+COMMENT ON COLUMN company.bizstt_rbf_tax_type IS '국세청 직전과세유형 명칭';
+COMMENT ON COLUMN company.bizstt_rbf_tax_type_cd IS '국세청 직전과세유형 코드';
+COMMENT ON COLUMN company.bizstt_status_updated_at IS '국세청 상태 조회 시각';
 COMMENT ON COLUMN company.has_bid IS '투찰 이력 여부 (후처리 계산)';
 COMMENT ON COLUMN company.bid_count IS '투찰 횟수 (후처리 계산)';
 

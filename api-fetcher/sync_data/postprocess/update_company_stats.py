@@ -5,8 +5,8 @@ has_bid: 해당 회사가 입찰에 참여한 이력이 있는지 여부
 bid_count: 사업자등록번호 기준 투찰 횟수
 
 계산 공식:
-    has_bid = EXISTS (SELECT 1 FROM bid WHERE bidprccorpbizrno = bizno)
-    bid_count = (SELECT COUNT(*) FROM bid WHERE bidprccorpbizrno = bizno)
+    has_bid = EXISTS (SELECT 1 FROM bid WHERE prcbdrbizno = bizno)
+    bid_count = (SELECT COUNT(*) FROM bid WHERE prcbdrbizno = bizno)
 """
 import os
 import sys
@@ -67,7 +67,7 @@ def update_company_stats(schema: str = None):
             SET bid_count = (
                 SELECT COUNT(*)
                 FROM {schema}.bid b
-                WHERE b.bidprccorpbizrno = c.bizno
+                WHERE b.prcbdrbizno = c.bizno
             )
         """
         cursor.execute(update_bid_count_sql)

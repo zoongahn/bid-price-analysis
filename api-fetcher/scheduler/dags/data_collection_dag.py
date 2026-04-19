@@ -20,11 +20,20 @@
 12. 조달업체기본정보 (operation_number=2)
 13. 조달업체업종정보조회 (operation_number=3)
 
-[낙찰정보서비스]
+[국세청]
+22. 사업자등록 상태조회 (조달업체기본정보 수집 후 실행)
+
+[낙찰정보서비스 - 예비가격]
 14. 개찰결과물품예비가격상세목록조회 (operation_number=9)
 15. 개찰결과공사예비가격상세목록조회 (operation_number=10)
 16. 개찰결과용역예비가격상세목록조회 (operation_number=11)
 17. 개찰결과외자예비가격상세목록조회 (operation_number=12)
+
+[낙찰정보서비스 - 개찰결과] (입력일시 기준)
+22. 개찰결과물품목록조회 (operation_number=5)
+23. 개찰결과공사목록조회 (operation_number=6)
+24. 개찰결과용역목록조회 (operation_number=7)
+25. 개찰결과외자목록조회 (operation_number=8)
 
 [공공데이터개방표준서비스]
 18. 데이터셋개방표준에따른낙찰정보-물품 (operation_number=2, bsns_div_cd=1)
@@ -46,6 +55,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 
 from fetch_data.src.data_collector import DataCollector
 from fetch_data.src.missing_company_collector import collect_missing_companies
+from fetch_data.src.nts_status_collector import collect_nts_status
 
 
 # =============================================================================
@@ -349,6 +359,58 @@ def collect_notice_region(**context):
     print(f"[공고-참가가능지역] 수집 완료: {date_str}")
 
 
+def collect_openg_result_goods(**context):
+    """[개찰결과] 개찰결과물품목록조회 - 입력일시 기준"""
+    date_str = get_target_date(context)
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=5,  # 개찰결과물품목록조회
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[개찰결과-물품] 수집 완료: {date_str}")
+
+
+def collect_openg_result_cnstwk(**context):
+    """[개찰결과] 개찰결과공사목록조회 - 입력일시 기준"""
+    date_str = get_target_date(context)
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=6,  # 개찰결과공사목록조회
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[개찰결과-공사] 수집 완료: {date_str}")
+
+
+def collect_openg_result_service(**context):
+    """[개찰결과] 개찰결과용역목록조회 - 입력일시 기준"""
+    date_str = get_target_date(context)
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=7,  # 개찰결과용역목록조회
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[개찰결과-용역] 수집 완료: {date_str}")
+
+
+def collect_openg_result_foreign(**context):
+    """[개찰결과] 개찰결과외자목록조회 - 입력일시 기준"""
+    date_str = get_target_date(context)
+    collector = DataCollector(
+        service_name="낙찰정보서비스",
+        operation_number=8,  # 개찰결과외자목록조회
+        start_date=date_str,
+        end_date=date_str,
+    )
+    collector.execute()
+    print(f"[개찰결과-외자] 수집 완료: {date_str}")
+
+
 # =============================================================================
 # DAG 정의
 # =============================================================================
@@ -368,7 +430,7 @@ with DAG(
     description="나라장터 공공데이터 일일 수집 (전체 API 병렬 실행)",
     schedule_interval="0 17 * * *",  # UTC 17:00 = KST 02:00 (매일 새벽 2시)
     start_date=days_ago(1),
-    catchup=False,
+    catchup=True,
     tags=["data-collection", "mongodb", "g2b"],
 ) as dag:
 
@@ -488,12 +550,44 @@ with DAG(
     )
 
     # =========================================================================
+    # 개찰결과 수집 (4종) - 입력일시 기준
+    # =========================================================================
+    task_openg_result_goods = PythonOperator(
+        task_id="collect_openg_result_goods",
+        python_callable=collect_openg_result_goods,
+    )
+
+    task_openg_result_cnstwk = PythonOperator(
+        task_id="collect_openg_result_cnstwk",
+        python_callable=collect_openg_result_cnstwk,
+    )
+
+    task_openg_result_service = PythonOperator(
+        task_id="collect_openg_result_service",
+        python_callable=collect_openg_result_service,
+    )
+
+    task_openg_result_foreign = PythonOperator(
+        task_id="collect_openg_result_foreign",
+        python_callable=collect_openg_result_foreign,
+    )
+
+    # =========================================================================
     # 누락 company 증분 수집 - bid 수집 완료 후 실행
     # =========================================================================
 
     task_collect_missing_companies = PythonOperator(
         task_id="collect_missing_companies",
         python_callable=collect_missing_companies,
+    )
+
+    # =========================================================================
+    # 국세청 사업자등록 상태조회 - company 수집 완료 후 실행
+    # =========================================================================
+
+    task_collect_nts_status = PythonOperator(
+        task_id="collect_nts_status",
+        python_callable=collect_nts_status,
     )
 
     # =========================================================================
@@ -510,7 +604,8 @@ with DAG(
     # Task 의존성
     # =========================================================================
     # 1. bid 4개 수집 완료 → 누락 company 수집
-    # 2. 모든 수집 완료 → 동기화 DAG 트리거
+    # 2. company 수집 완료 → 국세청 상태조회
+    # 3. 모든 수집 완료 → 동기화 DAG 트리거
 
     # bid 수집 완료 후 누락 company 수집
     [
@@ -519,6 +614,9 @@ with DAG(
         task_bid_data_cnstwk,
         task_bid_data_service,
     ] >> task_collect_missing_companies
+
+    # company 수집 완료 후 국세청 상태조회
+    task_company_basic >> task_collect_nts_status
 
     # 모든 수집 완료 후 동기화 DAG 트리거
     [
@@ -533,14 +631,20 @@ with DAG(
         task_notice_license,
         task_notice_region,
         # 사용자정보서비스
-        task_company_basic,
         task_company_industry,
         task_institution,
+        # 국세청 상태조회 (company 수집 후 실행)
+        task_collect_nts_status,
         # 낙찰정보서비스 (예비가격 4종)
         task_reserve_price_goods,
         task_reserve_price_cnstwk,
         task_reserve_price_service,
         task_reserve_price_foreign,
+        # 낙찰정보서비스 (개찰결과 4종)
+        task_openg_result_goods,
+        task_openg_result_cnstwk,
+        task_openg_result_service,
+        task_openg_result_foreign,
         # 누락 company 수집 (bid 수집 후 실행)
         task_collect_missing_companies,
     ] >> trigger_sync

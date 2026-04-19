@@ -8,65 +8,51 @@
 # 공통 필드 정의
 # ============================================================
 
-# Notice 테이블에서 병합할 낙찰정보 필드
-NOTICE_WIN_FIELDS = [
-    "opengDate",
-    "opengTm",
-    "opengRsltDivNm",
-    "fnlSucsfAmt",
-    "fnlSucsfRt",
-    "fnlSucsfDate",
-    "fnlSucsfCorpNm",
-    "fnlSucsfCorpCeoNm",
-    "fnlSucsfCorpOfclNm",
-    "fnlSucsfCorpBizrno",
-    "fnlSucsfCorpAdrs",
-    "fnlSucsfCorpContactTel",
-    "cntrctCnclsSttusNm",
-    "bidwinrDcsnMthdNm",
+# 개찰결과 API (오퍼레이션 5,6,7,8) 필드 매핑
+# MongoDB 필드명 → PostgreSQL 컬럼명
+OPENG_RESULT_FIELD_MAPPING = {
+    "opengDt": "actual_opengdt",  # 실제 개찰일시 (입찰공고의 opengDt는 예정 개찰일시)
+    "inptDt": "openg_result_inptdt",  # 개찰결과 입력일시 (기초금액의 inptDt는 inptdt)
+}
+
+# 개찰결과 API 동기화 대상 필드
+OPENG_RESULT_FIELDS = [
+    "opengDt",  # → actual_opengdt로 매핑됨
+    "inptDt",  # → openg_result_inptdt로 매핑됨
+    "bidClsfcNo",
+    "rbidNo",
+    "prtcptCnum",
+    "opengCorpInfo",
+    "progrsDivCdNm",
+    "rsrvtnPrceFileExistnceYn",
+    "opengRsltNtcCntnts",
 ]
+
+# Notice 테이블에서 병합할 낙찰정보 필드 (레거시 - 더 이상 사용 안함)
+# 개찰결과 API (낙찰정보서비스 오퍼레이션 5,6,7,8)로 대체됨
+# NOTICE_WIN_FIELDS = [
+#     "opengDate",
+#     "opengTm",
+#     "opengRsltDivNm",
+#     "fnlSucsfAmt",
+#     "fnlSucsfRt",
+#     "fnlSucsfDate",
+#     "fnlSucsfCorpNm",
+#     "fnlSucsfCorpCeoNm",
+#     "fnlSucsfCorpOfclNm",
+#     "fnlSucsfCorpBizrno",
+#     "fnlSucsfCorpAdrs",
+#     "fnlSucsfCorpContactTel",
+#     "cntrctCnclsSttusNm",
+#     "bidwinrDcsnMthdNm",
+# ]
 
 SYNC_CONFIGS = {
     # ============================================================
-    # notice (기존 - 공사만)
-    # ============================================================
-    "notice": {
-        "psql_table": "notice",
-        "psql_pk": ("bidntceno", "bidntceord"),
-        "merge_sources": [
-            {
-                "collection_name": "입찰공고정보서비스.입찰공고목록정보에대한공사조회",
-                "is_primary": True,  # 메인 컬렉션 (이 컬렉션의 is_synced 기준으로 동기화)
-                "sync_flag": "is_synced",
-                "join_keys": None,  # 메인이므로 join 불필요
-                "projection": None,  # 전체 필드
-            },
-            {
-                "collection_name": "입찰공고정보서비스.입찰공고목록정보에대한공사기초금액조회",
-                "is_primary": False,
-                "sync_flag": "is_synced",
-                "join_keys": ("bidNtceNo", "bidNtceOrd"),
-                "projection": {"_id": 0},  # _id 제외하고 전체
-                "synced_at_column": "bssamt_synced_at",  # 이 소스 데이터가 있으면 설정
-            },
-            {
-                "collection_name": "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보-공사",
-                "is_primary": False,
-                "sync_flag": "notice_is_synced",  # bid와 구분하기 위한 별도 플래그
-                "join_keys": ("bidNtceNo", "bidNtceOrd"),
-                "projection": {f: 1 for f in NOTICE_WIN_FIELDS},  # 특정 필드만
-                "synced_at_column": "win_synced_at",  # 이 소스 데이터가 있으면 설정
-            },
-        ],
-        "batch_size": 10000,
-        "parallel": False,
-    },
-
-    # ============================================================
-    # notice_unified (통합 - 공사/물품/외자/용역)
+    # notice (통합 - 공사/물품/외자/용역)
     # 4개 카테고리를 순차적으로 동기화
     # ============================================================
-    "notice_unified": {
+    "notice": {
         "psql_table": "notice",
         "psql_pk": ("bidntceno", "bidntceord"),
         "multi_source": True,  # 다중 primary 소스 모드
@@ -91,12 +77,13 @@ SYNC_CONFIGS = {
                         "synced_at_column": "bssamt_synced_at",
                     },
                     {
-                        "collection_name": "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보-공사",
+                        "collection_name": "낙찰정보서비스.개찰결과공사목록조회",
                         "is_primary": False,
-                        "sync_flag": "notice_is_synced",
+                        "sync_flag": "is_synced",
                         "join_keys": ("bidNtceNo", "bidNtceOrd"),
-                        "projection": {f: 1 for f in NOTICE_WIN_FIELDS},
-                        "synced_at_column": "win_synced_at",
+                        "projection": {f: 1 for f in OPENG_RESULT_FIELDS},
+                        "field_mapping": OPENG_RESULT_FIELD_MAPPING,
+                        "synced_at_column": "openg_result_synced_at",
                     },
                 ],
             },
@@ -120,12 +107,13 @@ SYNC_CONFIGS = {
                         "synced_at_column": "bssamt_synced_at",
                     },
                     {
-                        "collection_name": "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보-물품",
+                        "collection_name": "낙찰정보서비스.개찰결과물품목록조회",
                         "is_primary": False,
-                        "sync_flag": "notice_is_synced",
+                        "sync_flag": "is_synced",
                         "join_keys": ("bidNtceNo", "bidNtceOrd"),
-                        "projection": {f: 1 for f in NOTICE_WIN_FIELDS},
-                        "synced_at_column": "win_synced_at",
+                        "projection": {f: 1 for f in OPENG_RESULT_FIELDS},
+                        "field_mapping": OPENG_RESULT_FIELD_MAPPING,
+                        "synced_at_column": "openg_result_synced_at",
                     },
                 ],
             },
@@ -141,12 +129,13 @@ SYNC_CONFIGS = {
                         "projection": None,
                     },
                     {
-                        "collection_name": "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보-외자",
+                        "collection_name": "낙찰정보서비스.개찰결과외자목록조회",
                         "is_primary": False,
-                        "sync_flag": "notice_is_synced",
+                        "sync_flag": "is_synced",
                         "join_keys": ("bidNtceNo", "bidNtceOrd"),
-                        "projection": {f: 1 for f in NOTICE_WIN_FIELDS},
-                        "synced_at_column": "win_synced_at",
+                        "projection": {f: 1 for f in OPENG_RESULT_FIELDS},
+                        "field_mapping": OPENG_RESULT_FIELD_MAPPING,
+                        "synced_at_column": "openg_result_synced_at",
                     },
                 ],
             },
@@ -170,12 +159,13 @@ SYNC_CONFIGS = {
                         "synced_at_column": "bssamt_synced_at",
                     },
                     {
-                        "collection_name": "공공데이터개방표준서비스.데이터셋개방표준에따른낙찰정보-용역",
+                        "collection_name": "낙찰정보서비스.개찰결과용역목록조회",
                         "is_primary": False,
-                        "sync_flag": "notice_is_synced",
+                        "sync_flag": "is_synced",
                         "join_keys": ("bidNtceNo", "bidNtceOrd"),
-                        "projection": {f: 1 for f in NOTICE_WIN_FIELDS},
-                        "synced_at_column": "win_synced_at",
+                        "projection": {f: 1 for f in OPENG_RESULT_FIELDS},
+                        "field_mapping": OPENG_RESULT_FIELD_MAPPING,
+                        "synced_at_column": "openg_result_synced_at",
                     },
                 ],
             },
@@ -193,6 +183,38 @@ SYNC_CONFIGS = {
                 "sync_flag": "is_synced",
                 "join_keys": None,
                 "projection": None,
+            },
+            {
+                "collection_name": "사업자등록정보진위확인및상태조회서비스.상태조회",
+                "is_primary": False,
+                "sync_flag": "is_synced",
+                "join_keys": ("bizno", "b_no"),  # (primary 필드, secondary 필드)
+                "projection": {
+                    "b_stt": 1,
+                    "b_stt_cd": 1,
+                    "tax_type": 1,
+                    "tax_type_cd": 1,
+                    "end_dt": 1,
+                    "utcc_yn": 1,
+                    "tax_type_change_dt": 1,
+                    "invoice_apply_dt": 1,
+                    "rbf_tax_type": 1,
+                    "rbf_tax_type_cd": 1,
+                },
+                "field_mapping": {
+                    # API 필드 → PostgreSQL 필드
+                    "b_stt": "bizstt_b_stt",
+                    "b_stt_cd": "bizstt_b_stt_cd",
+                    "tax_type": "bizstt_tax_type",
+                    "tax_type_cd": "bizstt_tax_type_cd",
+                    "end_dt": "bizstt_end_dt",
+                    "utcc_yn": "bizstt_utcc_yn",
+                    "tax_type_change_dt": "bizstt_tax_type_change_dt",
+                    "invoice_apply_dt": "bizstt_invoice_apply_dt",
+                    "rbf_tax_type": "bizstt_rbf_tax_type",
+                    "rbf_tax_type_cd": "bizstt_rbf_tax_type_cd",
+                },
+                "synced_at_column": "bizstt_status_updated_at",
             },
         ],
         "batch_size": 10000,
@@ -387,6 +409,55 @@ SYNC_CONFIGS = {
                 "sync_flag": "is_synced",
                 "join_keys": None,
                 "projection": None,
+            },
+        ],
+        "batch_size": 10000,
+        "parallel": False,
+    },
+    # ============================================================
+    # bid (개찰결과 - 개찰완료/유찰/재입찰 통합)
+    # 3개 컬렉션을 순차적으로 동기화
+    # ============================================================
+    "bid": {
+        "psql_table": "bid",
+        "psql_pk": ("bidntceno", "bidntceord", "bidclsfcno", "rbidno", "prcbdrbizno"),
+        "multi_source": True,
+        "categories": [
+            {
+                "name": "개찰완료",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과개찰완료목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
+            },
+            {
+                "name": "유찰",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과유찰목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
+            },
+            {
+                "name": "재입찰",
+                "merge_sources": [
+                    {
+                        "collection_name": "낙찰정보서비스.개찰결과재입찰목록조회",
+                        "is_primary": True,
+                        "sync_flag": "is_synced",
+                        "join_keys": None,
+                        "projection": None,
+                    },
+                ],
             },
         ],
         "batch_size": 10000,

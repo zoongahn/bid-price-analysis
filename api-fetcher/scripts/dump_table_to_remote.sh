@@ -1,5 +1,7 @@
 #!/bin/bash
 # 특정 테이블을 원격 서버로 덤프/전송하는 스크립트
+# ⚠️  주의: 내부망(LAN) 전용 스크립트입니다. 192.168.0.x 네트워크에서만 동작합니다.
+#
 # 사용법: ./dump_table_to_remote.sh <src_schema.table> [dst_schema.table] [method]
 # 예시: ./dump_table_to_remote.sh data.company                          # 동일 스키마로 전송
 #       ./dump_table_to_remote.sh data.company public.company           # 다른 스키마로 전송
@@ -15,10 +17,10 @@ SRC_DB="GFCON_PSQL"
 SRC_USER="postgres"
 SRC_PASSWORD="0000"
 
-# 대상 서버 (SSH)
-REMOTE_HOST="gfcon.ddnsfree.com"
+# 대상 서버 (SSH) - 내부망 전용
+REMOTE_HOST="192.168.0.101"
 REMOTE_USER="ajh"
-REMOTE_SSH_PORT="23"
+REMOTE_SSH_PORT="22"
 REMOTE_SSH_KEY="$HOME/.ssh/gfcon-ai-ajh"
 
 # 대상 DB (원격)

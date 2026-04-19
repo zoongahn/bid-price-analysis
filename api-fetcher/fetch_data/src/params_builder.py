@@ -116,6 +116,19 @@ class ParamsBuilder:
                     "cntrctCnclsEndDate": None,
                 },
             },
+            # 낙찰정보서비스 - 개찰결과 (오퍼레이션 5,6,7,8)
+            # inqryDiv=1: 입력일시 기준
+            "opengResult": {
+                0: {
+                    "serviceKey": sk,
+                    "pageNo": 1,
+                    "numOfRows": n,
+                    "type": "json",
+                    "inqryDiv": 1,  # 입력일시 기준
+                    "inqryBgnDt": None,
+                    "inqryEndDt": None,
+                },
+            },
         }
 
     @staticmethod
@@ -130,4 +143,5 @@ class ParamsBuilder:
                 2: ["opengBgnDt", "opengEndDt"],
                 3: ["cntrctCnclsBgnDate", "cntrctCnclsEndDate"],
             },
+            "opengResult": ["inqryBgnDt", "inqryEndDt"],
         }

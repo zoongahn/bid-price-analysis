@@ -1,10 +1,13 @@
 import os
+from pathlib import Path
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from sshtunnel import SSHTunnelForwarder
 
-load_dotenv()
+# 프로젝트 루트의 .env 파일 로드
+project_root = Path(__file__).resolve().parent.parent
+load_dotenv(project_root / ".env")
 
 
 def connect_mongodb_local():
